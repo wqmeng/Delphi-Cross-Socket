@@ -56,6 +56,7 @@
             <FormType>fmx</FormType>
         </DCCReference>
         <DCCReference Include="ProxyDns.pas"/>
+        <DCCReference Include="ProxyUdp.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

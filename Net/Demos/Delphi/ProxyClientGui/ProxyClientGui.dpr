@@ -3,7 +3,8 @@ uses
   System.StartUpCopy,
   FMX.Forms,
   ProxyClientGui.Main in 'ProxyClientGui.Main.pas' {ProxyMainForm},
-  ProxyDns in 'ProxyDns.pas';
+  ProxyDns in 'ProxyDns.pas',
+  ProxyUdp in 'ProxyUdp.pas';
 
 {$R *.res}
 begin

@@ -751,7 +751,7 @@ begin
       if LHostAnsi = '' then
         raise ECrossSocket.Create(
           'A HTTPS proxy host name is required when peer verification is enabled.');
-      ClearOpenSslErrors;
+      ERR_clear_error();
       if SSL_set1_host(FProxySslData, PAnsiChar(LHostAnsi)) <= 0 then
         raise ECrossSocket.CreateFmt('SSL_set1_host for HTTPS proxy failed: %s.',
           [GetOpenSslErrors]);
@@ -915,7 +915,7 @@ begin
   end;
 
   LBytes := ABytes;
-  _Send(@LBytes[0], Length(LBytes),
+  _Send(Pointer(@LBytes[0]), Length(LBytes),
     procedure(const AConnection: ICrossConnection; const ASuccess: Boolean)
     begin
       LBytes := nil;

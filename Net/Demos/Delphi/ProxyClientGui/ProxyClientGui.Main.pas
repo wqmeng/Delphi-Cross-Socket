@@ -1,4 +1,4 @@
-unit ProxyClientGui.Main;
+﻿unit ProxyClientGui.Main;
 
 interface
 
@@ -25,6 +25,7 @@ uses
   Net.CrossWebSocketParser,
   Utils.Utils,
   ProxyDns,
+  ProxyUdp,
   FMX.Memo.Types,
   FMX.ScrollBox,
   FMX.Controls.Presentation;
@@ -40,6 +41,7 @@ type
     GoogleButton: TButton;
     DnsDirectButton: TButton;
     DnsProxyButton: TButton;
+    UdpDnsButton: TButton;
     ResolveButton: TButton;
     WsDirectButton: TButton;
     WsProxyButton: TButton;
@@ -49,6 +51,7 @@ type
     procedure HttpClick(Sender: TObject);
     procedure DohDirectClick(Sender: TObject);
     procedure DohProxyClick(Sender: TObject);
+    procedure UdpDnsClick(Sender: TObject);
     procedure ResolveClick(Sender: TObject);
     procedure WsDirectClick(Sender: TObject);
     procedure WsProxyClick(Sender: TObject);
@@ -158,10 +161,10 @@ var
   LServer, LIP, LIPv6: string;
 begin
   LSettings := TCrossProxySettings.Direct;
-  LServer := '223.5.5.5';
+  LServer := DNS_DIRECT_SERVER;
   if AProxy then begin
     LSettings := Settings;
-    LServer := '8.8.8.8';
+    LServer := DNS_PROXY_SERVER;
   end;
   Log('DNS apple.com ' + ProxyLabel(AProxy) + ' server ' + LServer + ':53');
   try
@@ -228,6 +231,26 @@ end;
 procedure TProxyMainForm.DohProxyClick(Sender: TObject);
 begin
   ResolveDns(True);
+end;
+procedure TProxyMainForm.UdpDnsClick(Sender: TObject);
+var
+  LSettings: TCrossProxySettings;
+begin
+  if SameText(ProxyType.Text, 'direct') then
+    LSettings := TCrossProxySettings.Direct
+  else
+    LSettings := Settings;
+  if SameText(ProxyType.Text, 'direct') then
+    Log('UDP DNS direct server ' + UDP_DIRECT_DNS_SERVER + ':53')
+  else
+    Log('UDP DNS ' + ProxyLabel(True) + ' proxy ' + ProxyHost.Text + ':' + ProxyPort.Text + ' target ' + UDP_PROXY_DNS_SERVER + ':53');
+  TThread.CreateAnonymousThread(
+    procedure
+    var LResult: string;
+    begin
+      try LResult := TestUdpDns(LSettings, UseAuth.IsChecked); except on E: Exception do LResult := 'UDP DNS FAILED: ' + E.Message; end;
+      Log(LResult);
+    end).Start;
 end;
 procedure TProxyMainForm.ResolveClick(Sender: TObject);
 begin

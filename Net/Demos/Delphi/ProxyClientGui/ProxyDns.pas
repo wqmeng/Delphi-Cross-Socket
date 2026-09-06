@@ -8,6 +8,10 @@ uses
   Net.Winsock2,
   Net.CrossProxy;
 
+const
+  DNS_DIRECT_SERVER = '223.5.5.5';
+  DNS_PROXY_SERVER = '8.8.8.8';
+
 function QueryDnsA(const AServer: string; const AProxy: TCrossProxySettings): string;
 function QueryDnsAAAA(const AServer: string; const AProxy: TCrossProxySettings): string;
 

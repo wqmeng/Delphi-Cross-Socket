@@ -69,7 +69,7 @@ object ProxyMainForm: TProxyMainForm
     Size.Width = 100.000000000000000000
     Size.Height = 32.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 14
+    TabOrder = 20
     Text = 'Use Auth'
     OnChange = AuthClick
   end
@@ -104,17 +104,27 @@ object ProxyMainForm: TProxyMainForm
     OnClick = DohProxyClick
   end
   object ResolveButton: TButton
+    Position.X = 536.000000000000000000
+    Position.Y = 64.000000000000000000
+    Size.Width = 120.000000000000000000
+    Size.Height = 36.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 14
+    Text = 'IPv4/IPv6'
+    OnClick = ResolveClick
+  end
+  object UdpDnsButton: TButton
     Position.X = 406.000000000000000000
     Position.Y = 64.000000000000000000
     Size.Width = 120.000000000000000000
     Size.Height = 36.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 8
-    Text = 'IPv4/IPv6'
-    OnClick = ResolveClick
+    Text = 'UDP DNS'
+    OnClick = UdpDnsClick
   end
   object WsDirectButton: TButton
-    Position.X = 556.000000000000000000
+    Position.X = 666.000000000000000000
     Position.Y = 64.000000000000000000
     Size.Width = 120.000000000000000000
     Size.Height = 36.000000000000000000
@@ -124,7 +134,7 @@ object ProxyMainForm: TProxyMainForm
     OnClick = WsDirectClick
   end
   object WsProxyButton: TButton
-    Position.X = 686.000000000000000000
+    Position.X = 796.000000000000000000
     Position.Y = 64.000000000000000000
     Size.Width = 120.000000000000000000
     Size.Height = 36.000000000000000000

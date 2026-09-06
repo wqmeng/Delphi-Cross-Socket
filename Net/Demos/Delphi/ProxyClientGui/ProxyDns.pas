@@ -53,7 +53,7 @@ var
   P, A: TBytes;
   R: array[0..2047] of Byte;
   G: array[0..3] of Byte;
-  Auth: TBytes;
+  Auth, UserBytes, PasswordBytes: TBytes;
   LenBuf: array[0..1] of Byte;
   N, L, O, C: Integer;
   B: array[0..3] of Byte;
@@ -117,14 +117,16 @@ begin
             raise Exception.Create('SOCKS5 proxy did not select username/password authentication');
           if (Length(AProxy.Username) > 255) or (Length(AProxy.Password) > 255) then
             raise Exception.Create('SOCKS5 credentials exceed 255 bytes');
-          SetLength(Auth, 3 + Length(AProxy.Username) + Length(AProxy.Password));
+          UserBytes := TEncoding.ASCII.GetBytes(AProxy.Username);
+          PasswordBytes := TEncoding.ASCII.GetBytes(AProxy.Password);
+          SetLength(Auth, 3 + Length(UserBytes) + Length(PasswordBytes));
           Auth[0] := $01;
-          Auth[1] := Length(AProxy.Username);
-          if Length(AProxy.Username) > 0 then
-            Move(AProxy.Username[1], Auth[2], Length(AProxy.Username));
-          Auth[2 + Length(AProxy.Username)] := Length(AProxy.Password);
-          if Length(AProxy.Password) > 0 then
-            Move(AProxy.Password[1], Auth[3 + Length(AProxy.Username)], Length(AProxy.Password));
+          Auth[1] := Length(UserBytes);
+          if Length(UserBytes) > 0 then
+            Move(UserBytes[0], Auth[2], Length(UserBytes));
+          Auth[2 + Length(UserBytes)] := Length(PasswordBytes);
+          if Length(PasswordBytes) > 0 then
+            Move(PasswordBytes[0], Auth[3 + Length(UserBytes)], Length(PasswordBytes));
           SendAll(S, Auth[0], Length(Auth));
           ReadAll(S, G, 2);
           if (G[0] <> $01) or (G[1] <> $00) then

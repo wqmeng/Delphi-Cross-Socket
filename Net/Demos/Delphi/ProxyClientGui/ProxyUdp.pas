@@ -121,21 +121,21 @@ var
   LH: TRawAddrInfo;
   LI: PRawAddrInfo;
   LTcp, LUdp: TSocket;
-  LMethod, LAssociate: array[0..9] of Byte;
-  LAuth, LPacket, LQuery: TBytes;
+  LMethod, LAssociate: array[0..21] of Byte;
+  LAuth, LPacket, LQuery, LUserBytes, LPasswordBytes: TBytes;
   LResponse: array[0..2047] of Byte;
-  LRelay: sockaddr_in;
-  LFrom: sockaddr;
+  LRelay: TRawSockAddrIn;
+  LFrom: TRawSockAddrIn;
   LDnsHints: TRawAddrInfo;
   LDnsInfo: PRawAddrInfo;
-  LFromLen, LSent, LReceived, I: Integer;
+  LRelayLen, LFromLen, LSent, LReceived, I: Integer;
 begin
   FillChar(LH, SizeOf(LH), 0);
-  LH.ai_family := AF_INET; LH.ai_socktype := SOCK_STREAM; LH.ai_protocol := IPPROTO_TCP;
+  LH.ai_family := AF_UNSPEC; LH.ai_socktype := SOCK_STREAM; LH.ai_protocol := IPPROTO_TCP;
   LI := TSocketAPI.GetAddrInfo(ASettings.Host, ASettings.Port, LH);
   if LI = nil then raise Exception.Create('Unable to resolve SOCKS5 proxy');
   try
-    LTcp := TSocketAPI.NewSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    LTcp := TSocketAPI.NewSocket(LI.ai_family, SOCK_STREAM, IPPROTO_TCP);
     if TSocketAPI.Connect(LTcp, LI.ai_addr, LI.ai_addrlen) <> 0 then
       raise Exception.Create('Unable to connect SOCKS5 proxy');
     try
@@ -149,11 +149,13 @@ begin
       begin
         if not AUseAuth then
           raise Exception.Create('SOCKS5 proxy selected authentication unexpectedly');
-        SetLength(LAuth, 3 + Length(ASettings.Username) + Length(ASettings.Password));
-        LAuth[0] := 1; LAuth[1] := Length(ASettings.Username);
-        if Length(ASettings.Username) > 0 then Move(ASettings.Username[1], LAuth[2], Length(ASettings.Username));
-        LAuth[2 + Length(ASettings.Username)] := Length(ASettings.Password);
-        if Length(ASettings.Password) > 0 then Move(ASettings.Password[1], LAuth[3 + Length(ASettings.Username)], Length(ASettings.Password));
+        LUserBytes := TEncoding.ASCII.GetBytes(ASettings.Username);
+        LPasswordBytes := TEncoding.ASCII.GetBytes(ASettings.Password);
+        SetLength(LAuth, 3 + Length(LUserBytes) + Length(LPasswordBytes));
+        LAuth[0] := 1; LAuth[1] := Length(LUserBytes);
+        if Length(LUserBytes) > 0 then Move(LUserBytes[0], LAuth[2], Length(LUserBytes));
+        LAuth[2 + Length(LUserBytes)] := Length(LPasswordBytes);
+        if Length(LPasswordBytes) > 0 then Move(LPasswordBytes[0], LAuth[3 + Length(LUserBytes)], Length(LPasswordBytes));
         WriteBytes(LTcp, LAuth[0], Length(LAuth));
         if not ReadBytes(LTcp, LMethod[0], 2) or (LMethod[1] <> 0) then
           raise Exception.Create('SOCKS5 username/password authentication failed');
@@ -162,13 +164,26 @@ begin
       FillChar(LAssociate, SizeOf(LAssociate), 0);
       LAssociate[0] := 5; LAssociate[1] := 3; LAssociate[3] := 1;
       WriteBytes(LTcp, LAssociate[0], 10);
-      if not ReadBytes(LTcp, LAssociate[0], 4) or (LAssociate[1] <> 0) or (LAssociate[3] <> 1) then
+      if not ReadBytes(LTcp, LAssociate[0], 4) or (LAssociate[1] <> 0) or
+        not (LAssociate[3] in [1, 4]) then
         raise Exception.Create('SOCKS5 UDP ASSOCIATE failed');
-      if not ReadBytes(LTcp, LAssociate[4], 6) then raise Exception.Create('Incomplete UDP relay address');
-      FillChar(LRelay, SizeOf(LRelay), 0); LRelay.sin_family := AF_INET;
-      Move(LAssociate[4], LRelay.sin_addr, 4); Move(LAssociate[8], LRelay.sin_port, 2);
-      if LRelay.sin_addr.S_addr = 0 then LRelay.sin_addr.S_addr := PSockAddrIn(LI.ai_addr)^.sin_addr.S_addr;
-      LUdp := TSocketAPI.NewSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+      if LAssociate[3] = 1 then
+      begin
+        if not ReadBytes(LTcp, LAssociate[4], 6) then raise Exception.Create('Incomplete IPv4 UDP relay address');
+        FillChar(LRelay, SizeOf(LRelay), 0); LRelay.Addr.sin_family := AF_INET;
+        Move(LAssociate[4], LRelay.Addr.sin_addr, 4); Move(LAssociate[8], LRelay.Addr.sin_port, 2);
+        if LRelay.Addr.sin_addr.S_addr = 0 then LRelay.Addr.sin_addr.S_addr := PSockAddrIn(LI.ai_addr)^.sin_addr.S_addr;
+        LRelayLen := SizeOf(sockaddr_in);
+      end
+      else
+      begin
+        if not ReadBytes(LTcp, LAssociate[4], 18) then raise Exception.Create('Incomplete IPv6 UDP relay address');
+        FillChar(LRelay, SizeOf(LRelay), 0); LRelay.Addr6.sin6_family := AF_INET6;
+        Move(LAssociate[4], LRelay.Addr6.sin6_addr, 16); Move(LAssociate[20], LRelay.Addr6.sin6_port, 2);
+        if IN6ADDR_ISANY(@LRelay.Addr6.sin6_addr) then LRelay.Addr6.sin6_addr := PSockAddrIn6(LI.ai_addr)^.sin6_addr;
+        LRelayLen := SizeOf(sockaddr_in6);
+      end;
+      LUdp := TSocketAPI.NewSocket(LRelay.Addr.sin_family, SOCK_DGRAM, IPPROTO_UDP);
       try
         FillChar(LDnsHints, SizeOf(LDnsHints), 0);
         LDnsHints.ai_family := AF_INET;
@@ -186,8 +201,14 @@ begin
         Move(PSockAddrIn(LDnsInfo.ai_addr)^.sin_addr, LPacket[4], 4);
         LPacket[8] := 0; LPacket[9] := 53;
         for I := 0 to High(LQuery) do LPacket[10 + I] := LQuery[I];
-        LSent := TSocketAPI.SendTo(LUdp, @LRelay, SizeOf(LRelay), LPacket[0], Length(LPacket));
-        LFromLen := SizeOf(LFrom); LReceived := TSocketAPI.RecvFrom(LUdp, @LFrom, LFromLen, LResponse[0], Length(LResponse));
+        // TRawSockAddrIn 头部包含 AddrLen，SendTo 必须传入实际 sockaddr 联合体地址。
+        if LRelay.Addr.sin_family = AF_INET then
+          LSent := TSocketAPI.SendTo(LUdp, @LRelay.Addr, LRelayLen, LPacket[0], Length(LPacket))
+        else
+          LSent := TSocketAPI.SendTo(LUdp, @LRelay.Addr6, LRelayLen, LPacket[0], Length(LPacket));
+        // IPv6 UDP relay 可能返回 sockaddr_in6，接收地址缓冲区不能使用 16 字节 sockaddr。
+        LFromLen := SizeOf(sockaddr_in6);
+        LReceived := TSocketAPI.RecvFrom(LUdp, @LFrom.Addr, LFromLen, LResponse[0], Length(LResponse));
         if (LSent = Length(LPacket)) and (LReceived > 12) and (LResponse[3] = 1) and
            (LResponse[10] = $CA) and (LResponse[11] = $FE) then
           Result := ParseDnsAddress(LResponse[10], LReceived - 10, AType)

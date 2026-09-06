@@ -229,6 +229,7 @@ type
   TCrossSslConnectionBase = class(TCrossConnection, ICrossSslConnection)
   protected
     function GetSsl: Boolean;
+    procedure SendProxyBytes(const ABytes: TBytes); virtual; abstract;
   public
     function GetSslInfo(var ASslInfo: TSslInfo): Boolean; virtual;
 

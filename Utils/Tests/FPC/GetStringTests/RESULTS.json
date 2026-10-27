@@ -1,0 +1,5581 @@
+{
+  "date": "2026-10-27",
+  "baseline_commit": "2318fb0",
+  "final_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+  "machine": "AMD Ryzen 9 5950X; Windows; affinity mask 4",
+  "compilers": {
+    "win32": "Delphi 13.1 dcc32 37.0",
+    "win64": "Delphi 13.1 dcc64 37.0",
+    "fpc64": "FPC 3.3.1-21438-g20e18660ec-dirty 2026/10/22"
+  },
+  "validation": {
+    "release_per_target": 329313,
+    "checked_per_target": 329313,
+    "complete_boolean_guard_per_target": 7360,
+    "multipart_cases_per_target": 21
+  },
+  "stages": {
+    "P1": {
+      "win32": {
+        "before": "baseline-fixed",
+        "after": "p1-fixed2",
+        "source_sha256": "15613def227cf0d1a4dad6a6a4714916b006f76f6cd6bdafda8d0eff20c99e56",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 143.5504371008742,
+            "after_ns": 47.45218240436481,
+            "change_percent": -66.94389556541738,
+            "paired_change_percent": -66.7660867913263,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 61.0,
+            "after_allocated_bytes": 30.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 169.98892984440957,
+            "after_ns": 74.94657534802054,
+            "change_percent": -55.910908188775025,
+            "paired_change_percent": -55.567175122906974,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 109.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 239.58335584393134,
+            "after_ns": 146.93513706252907,
+            "change_percent": -38.67055724929194,
+            "paired_change_percent": -39.3853821353378,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 301.0,
+            "after_allocated_bytes": 270.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 821.7612644975881,
+            "after_ns": 729.8306476444626,
+            "change_percent": -11.18702241451236,
+            "paired_change_percent": -13.028294793428275,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2093.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42302.347918890075,
+            "after_ns": 42272.6787620064,
+            "change_percent": -0.07013595779733484,
+            "paired_change_percent": -0.7057498149743324,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131117.0,
+            "after_allocated_bytes": 131086.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3617.0426522970133,
+            "after_ns": 3527.6006941273176,
+            "change_percent": -2.4727924652172883,
+            "paired_change_percent": -2.0657531745709834,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 717.0,
+            "after_allocated_bytes": 686.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2434.625909752547,
+            "after_ns": 2241.0422125181954,
+            "change_percent": -7.951270725366911,
+            "paired_change_percent": -3.569612198012251,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1389.0,
+            "after_allocated_bytes": 1358.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 141289.76109215018,
+            "after_ns": 138721.50170648465,
+            "change_percent": -1.8177250536863032,
+            "paired_change_percent": 2.211693938776693,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87405.0,
+            "after_allocated_bytes": 87374.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 87.46593117573812,
+            "after_ns": 59.477708340606775,
+            "change_percent": -31.998999449164845,
+            "paired_change_percent": -32.80552922337012,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 89.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 319.00652545911555,
+            "after_ns": 279.1545559494666,
+            "change_percent": -12.492524863650956,
+            "paired_change_percent": -13.00994546037857,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2073.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 312.82533825338254,
+            "after_ns": 284.6420664206642,
+            "change_percent": -9.009267596440795,
+            "paired_change_percent": -8.218216431673497,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2073.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 60.53496076830166,
+            "after_ns": 27.838359813824088,
+            "change_percent": -54.012756495579865,
+            "paired_change_percent": -54.001472100615764,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 544.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 393.51112867114443,
+            "after_ns": 365.0032925062558,
+            "change_percent": -7.244480292376321,
+            "paired_change_percent": -8.262890243491727,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 544.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 2684.965349075975,
+            "after_ns": 2336.9802361396305,
+            "change_percent": -12.96050666188684,
+            "paired_change_percent": -3.904164426121759,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1405.0,
+            "after_allocated_bytes": 1374.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 867.7994771643856,
+            "after_ns": 788.216427582874,
+            "change_percent": -9.170672681384495,
+            "paired_change_percent": -13.391299062130368,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2093.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 942.2117724125025,
+            "after_ns": 833.9579824068875,
+            "change_percent": -11.489326834500769,
+            "paired_change_percent": -11.598965615372236,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3125.0,
+            "after_allocated_bytes": 3094.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 291.8051952047419,
+            "after_ns": 285.3229825766821,
+            "change_percent": -2.2214178275721475,
+            "paired_change_percent": -2.5760694200754664,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2072.0,
+            "after_allocated_bytes": 2072.0
+          }
+        ]
+      },
+      "win64": {
+        "before": "baseline-fixed",
+        "after": "p1-fixed2",
+        "source_sha256": "15613def227cf0d1a4dad6a6a4714916b006f76f6cd6bdafda8d0eff20c99e56",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 190.09434826417512,
+            "after_ns": 57.303288449207656,
+            "change_percent": -69.85534342684771,
+            "paired_change_percent": -69.9509940923065,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 89.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 203.14105432049243,
+            "after_ns": 72.9143203895977,
+            "change_percent": -64.10655609054685,
+            "paired_change_percent": -64.18060672974465,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 137.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 269.04781204825787,
+            "after_ns": 142.40330185492914,
+            "change_percent": -47.07137710178186,
+            "paired_change_percent": -47.47836391802015,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 329.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 850.1951250719723,
+            "after_ns": 720.8901115305056,
+            "change_percent": -15.208863204258027,
+            "paired_change_percent": -15.475674456214538,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2121.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42175.93582887701,
+            "after_ns": 42291.336898395726,
+            "change_percent": 0.27361827841103636,
+            "paired_change_percent": -0.2680931051235125,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131145.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2562.9782899344236,
+            "after_ns": 2303.9536512383015,
+            "change_percent": -10.106392227877592,
+            "paired_change_percent": -9.951419743786683,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 745.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2135.4279302254413,
+            "after_ns": 1884.3568295419768,
+            "change_percent": -11.757413918294034,
+            "paired_change_percent": -10.145627853013261,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1417.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 121534.34650455927,
+            "after_ns": 116516.4133738602,
+            "change_percent": -4.128818951201463,
+            "paired_change_percent": -4.6043293996208545,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87433.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 103.8149163149163,
+            "after_ns": 57.104569604569605,
+            "change_percent": -44.99386828830424,
+            "paired_change_percent": -45.106045907688284,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 101.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 326.4847395023328,
+            "after_ns": 275.23814152410574,
+            "change_percent": -15.696475754530903,
+            "paired_change_percent": -15.696475754530903,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2085.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 326.6253248978295,
+            "after_ns": 272.848152574528,
+            "change_percent": -16.464483377130467,
+            "paired_change_percent": -16.464483377130467,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2085.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 85.7998690688946,
+            "after_ns": 38.74571369029952,
+            "change_percent": -54.84175662414131,
+            "paired_change_percent": -54.42314528699171,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 205.72236617046858,
+            "after_ns": 157.5883305954941,
+            "change_percent": -23.39757045915414,
+            "paired_change_percent": -24.62112169381857,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 1143.248538900713,
+            "after_ns": 987.5916354177224,
+            "change_percent": -13.61531619648182,
+            "paired_change_percent": -14.217728590374035,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1433.0,
+            "after_allocated_bytes": 1378.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 880.1030602587024,
+            "after_ns": 752.6848249027238,
+            "change_percent": -14.477649392393266,
+            "paired_change_percent": -14.235689651850569,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2121.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 964.7545175588135,
+            "after_ns": 830.3614047050801,
+            "change_percent": -13.93029111631401,
+            "paired_change_percent": -13.720248782023148,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3161.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 648.3543314776834,
+            "after_ns": 624.2471595533417,
+            "change_percent": -3.7182094348622963,
+            "paired_change_percent": -3.482463407898362,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      },
+      "fpc64": {
+        "before": "baseline-fixed",
+        "after": "p1-fixed2",
+        "source_sha256": "15613def227cf0d1a4dad6a6a4714916b006f76f6cd6bdafda8d0eff20c99e56",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 121.2845763802172,
+            "after_ns": 71.88103549400235,
+            "change_percent": -40.73357252890821,
+            "paired_change_percent": -40.903138843861996,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 123.0,
+            "after_allocated_bytes": 68.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 165.84404346000233,
+            "after_ns": 116.47262752526382,
+            "change_percent": -29.769785459099552,
+            "paired_change_percent": -30.05404579890869,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 219.0,
+            "after_allocated_bytes": 164.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 351.4405535816797,
+            "after_ns": 302.77721750733093,
+            "change_percent": -13.84681863786067,
+            "paired_change_percent": -14.312725186153886,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 603.0,
+            "after_allocated_bytes": 548.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 1973.0986130163085,
+            "after_ns": 1918.5895442767871,
+            "change_percent": -2.7626124908269323,
+            "paired_change_percent": -2.5754200301263075,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 4187.0,
+            "after_allocated_bytes": 4132.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 116598.84637681159,
+            "after_ns": 155077.3884057971,
+            "change_percent": 33.00079136686713,
+            "paired_change_percent": 19.821153235481614,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 262235.0,
+            "after_allocated_bytes": 262180.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3071.367719950434,
+            "after_ns": 2991.666511771995,
+            "change_percent": -2.5949744688898657,
+            "paired_change_percent": -2.6229715155715705,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 1435.0,
+            "after_allocated_bytes": 1380.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2442.4772392508944,
+            "after_ns": 2355.8112506137336,
+            "change_percent": -3.548282344024678,
+            "paired_change_percent": -3.444032926909657,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2779.0,
+            "after_allocated_bytes": 2724.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 175537.30384615387,
+            "after_ns": 183121.15384615384,
+            "change_percent": 4.32036372544875,
+            "paired_change_percent": -0.947845784420287,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 174811.0,
+            "after_allocated_bytes": 174756.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 116.70580055505462,
+            "after_ns": 102.81361757438786,
+            "change_percent": -11.903592550323394,
+            "paired_change_percent": -12.047326571044836,
+            "before_allocations": 3.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 183.0,
+            "after_allocated_bytes": 164.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 1467.399143348945,
+            "after_ns": 1459.8534085905287,
+            "change_percent": -0.5142251031437395,
+            "paired_change_percent": -1.7325375838534662,
+            "before_allocations": 3.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 4151.0,
+            "after_allocated_bytes": 4132.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 1508.7041344638703,
+            "after_ns": 1448.6193441884895,
+            "change_percent": -3.9825429587446837,
+            "paired_change_percent": -4.059876159450915,
+            "before_allocations": 3.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 4151.0,
+            "after_allocated_bytes": 4132.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 49.32486208243104,
+            "after_ns": 33.01288650644325,
+            "change_percent": -33.07049404157976,
+            "paired_change_percent": -33.62842273307588,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 163.3214622227191,
+            "after_ns": 147.6036858999952,
+            "change_percent": -9.623827823247,
+            "paired_change_percent": -9.949575031761814,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 9785.219772231645,
+            "after_ns": 9677.416767627816,
+            "change_percent": -1.1016922165585918,
+            "paired_change_percent": -0.5010264612467785,
+            "before_allocations": 7.0,
+            "after_allocations": 4.0,
+            "before_allocated_bytes": 6248.0,
+            "after_allocated_bytes": 6193.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 1970.1921196859723,
+            "after_ns": 1915.0743099787685,
+            "change_percent": -2.797585532724034,
+            "paired_change_percent": -2.27496995014812,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 4187.0,
+            "after_allocated_bytes": 4132.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 2038.790218790219,
+            "after_ns": 1992.288236808237,
+            "change_percent": -2.2808615400153998,
+            "paired_change_percent": -2.0163835866184088,
+            "before_allocations": 6.0,
+            "after_allocations": 3.0,
+            "before_allocated_bytes": 5227.0,
+            "after_allocated_bytes": 5172.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 442.2847547912686,
+            "after_ns": 460.7006079555324,
+            "change_percent": 4.163800123057593,
+            "paired_change_percent": 3.6425197804655918,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      }
+    },
+    "P2": {
+      "win32": {
+        "before": "p1-fixed2",
+        "after": "p2",
+        "source_sha256": "c090685d22076da0532bf9b0e033cd40d09c0f0cbfbe3633613196feb53da682",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 47.50966072230563,
+            "after_ns": 47.21186992004797,
+            "change_percent": -0.6268005237887508,
+            "paired_change_percent": -1.2915133753195862,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 30.0,
+            "after_allocated_bytes": 30.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 75.34038005446081,
+            "after_ns": 73.02488068398091,
+            "change_percent": -3.0733842446853843,
+            "paired_change_percent": -2.3409979339764297,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 144.2845888355342,
+            "after_ns": 145.01925770308122,
+            "change_percent": 0.5091804145378687,
+            "paired_change_percent": -0.17846078662373532,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 270.0,
+            "after_allocated_bytes": 270.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 722.4515819041987,
+            "after_ns": 720.6257392075695,
+            "change_percent": -0.2527287284522006,
+            "paired_change_percent": -0.5579870393079389,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42959.97899159664,
+            "after_ns": 42260.29411764706,
+            "change_percent": -1.6286899816371991,
+            "paired_change_percent": -0.7757235423305309,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131086.0,
+            "after_allocated_bytes": 131086.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3533.5387088132866,
+            "after_ns": 3598.8659701759084,
+            "change_percent": 1.8487772951144787,
+            "paired_change_percent": 1.0234262596690247,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 686.0,
+            "after_allocated_bytes": 686.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2307.4598782512453,
+            "after_ns": 2236.4692861095737,
+            "change_percent": -3.0765688630509658,
+            "paired_change_percent": -3.0765688630509658,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1358.0,
+            "after_allocated_bytes": 1358.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 138460.44776119405,
+            "after_ns": 137446.2686567164,
+            "change_percent": -0.7324684564264938,
+            "paired_change_percent": -0.5985069852921354,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87374.0,
+            "after_allocated_bytes": 87374.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 59.31653233667348,
+            "after_ns": 58.576696206268494,
+            "change_percent": -1.2472680065074737,
+            "paired_change_percent": -1.1268090642128081,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 275.7494298352273,
+            "after_ns": 275.9728949910942,
+            "change_percent": 0.08103920867597036,
+            "paired_change_percent": -0.027142598641916038,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 282.5401017486309,
+            "after_ns": 281.296044035473,
+            "change_percent": -0.440311908100266,
+            "paired_change_percent": -0.2911683911387075,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 28.541003321352505,
+            "after_ns": 29.111709822779275,
+            "change_percent": 1.999602098780473,
+            "paired_change_percent": 2.0853889040786333,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 356.3364161636299,
+            "after_ns": 360.2342581824223,
+            "change_percent": 1.093865752133083,
+            "paired_change_percent": 0.43588246740611236,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 2498.840171627782,
+            "after_ns": 2402.0716009654066,
+            "change_percent": -3.8725394189312645,
+            "paired_change_percent": -0.3421199756343807,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1374.0,
+            "after_allocated_bytes": 1374.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 764.705453484981,
+            "after_ns": 768.591426071741,
+            "change_percent": 0.508165930954263,
+            "paired_change_percent": 0.3873765864050416,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 848.0814639905549,
+            "after_ns": 854.5749704840613,
+            "change_percent": 0.7656701353843998,
+            "paired_change_percent": 0.7738737439778154,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3094.0,
+            "after_allocated_bytes": 3094.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 286.3433853614184,
+            "after_ns": 287.00308127494066,
+            "change_percent": 0.23038629395597532,
+            "paired_change_percent": 0.3118631181384002,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2072.0,
+            "after_allocated_bytes": 2072.0
+          }
+        ]
+      },
+      "win64": {
+        "before": "p1-fixed2",
+        "after": "p2",
+        "source_sha256": "c090685d22076da0532bf9b0e033cd40d09c0f0cbfbe3633613196feb53da682",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 57.802211140669414,
+            "after_ns": 57.5935529831325,
+            "change_percent": -0.3609864630076398,
+            "paired_change_percent": -1.3192005299801135,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 34.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 77.38543443427922,
+            "after_ns": 74.09727606347236,
+            "change_percent": -4.24906624204503,
+            "paired_change_percent": -1.3307385836123786,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 142.77408696511654,
+            "after_ns": 141.81922156407308,
+            "change_percent": -0.6687946120620403,
+            "paired_change_percent": -0.564430980550823,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 274.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 726.4685378829573,
+            "after_ns": 724.7624289121263,
+            "change_percent": -0.2348496709579373,
+            "paired_change_percent": 0.8876954829699857,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42291.79810725553,
+            "after_ns": 42145.3207150368,
+            "change_percent": -0.3463494076256568,
+            "paired_change_percent": -0.18753818721397586,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131090.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2304.2391365136177,
+            "after_ns": 2322.409261227001,
+            "change_percent": 0.7885520398232204,
+            "paired_change_percent": -0.2619061515116039,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 690.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1903.9436073833633,
+            "after_ns": 1879.8362482437865,
+            "change_percent": -1.2661803136442829,
+            "paired_change_percent": -1.0733631276331423,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1362.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 116298.4126984127,
+            "after_ns": 116457.14285714286,
+            "change_percent": 0.13648523229785603,
+            "paired_change_percent": 0.13648523229785603,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87378.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 57.54233377116689,
+            "after_ns": 57.28708864354432,
+            "change_percent": -0.4435779901413417,
+            "paired_change_percent": -0.9893578837251393,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 273.86125,
+            "after_ns": 274.02125,
+            "change_percent": 0.05842374560109942,
+            "paired_change_percent": -0.38857604791519007,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 274.61308292001115,
+            "after_ns": 275.1321387134202,
+            "change_percent": 0.18901349778743803,
+            "paired_change_percent": 0.8392358185946192,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 39.91239556364416,
+            "after_ns": 39.930186071027215,
+            "change_percent": 0.0445738902208781,
+            "paired_change_percent": -2.01576494130854,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 156.7239518339145,
+            "after_ns": 157.40487358609425,
+            "change_percent": 0.43447204094329006,
+            "paired_change_percent": 0.4119769783584193,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 982.8707032935424,
+            "after_ns": 979.6826309986097,
+            "change_percent": -0.3243633454786621,
+            "paired_change_percent": -0.10387921657961652,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1378.0,
+            "after_allocated_bytes": 1378.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 750.9785737746093,
+            "after_ns": 748.4263606329334,
+            "change_percent": -0.3398516589957712,
+            "paired_change_percent": 0.1577055768087865,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 835.6498359460445,
+            "after_ns": 839.5256106452789,
+            "change_percent": 0.4638036809816004,
+            "paired_change_percent": 0.05493220495695894,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3106.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 621.353485366661,
+            "after_ns": 624.054782430537,
+            "change_percent": 0.4347440108559253,
+            "paired_change_percent": -0.14668784927189815,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      },
+      "fpc64": {
+        "before": "p1-fixed2",
+        "after": "p2",
+        "source_sha256": "c090685d22076da0532bf9b0e033cd40d09c0f0cbfbe3633613196feb53da682",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 75.42283409019203,
+            "after_ns": 46.6148741345755,
+            "change_percent": -38.19527640815967,
+            "paired_change_percent": -37.8793518839961,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 68.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 125.04585944264268,
+            "after_ns": 84.22787080110943,
+            "change_percent": -32.64241520948246,
+            "paired_change_percent": -31.13567111880392,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 164.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 320.0198455697929,
+            "after_ns": 223.73436185770902,
+            "change_percent": -30.0873477207791,
+            "paired_change_percent": -28.467772219059274,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 548.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 1959.107795489891,
+            "after_ns": 1446.5055890357698,
+            "change_percent": -26.165084312062614,
+            "paired_change_percent": -26.140161798645067,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4132.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 146781.48821548824,
+            "after_ns": 86950.17171717172,
+            "change_percent": -40.7621677813205,
+            "paired_change_percent": -39.85768992328366,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 262180.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3054.1377729427304,
+            "after_ns": 2394.7859196518766,
+            "change_percent": -21.588805165641023,
+            "paired_change_percent": -21.916593937112527,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1380.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2411.411133871551,
+            "after_ns": 1857.6334498132305,
+            "change_percent": -22.964880450279058,
+            "paired_change_percent": -23.157210859705902,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2724.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 175105.93150684933,
+            "after_ns": 119451.59817351599,
+            "change_percent": -31.783237069360148,
+            "paired_change_percent": -25.298916380302273,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 174756.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 102.1167747197034,
+            "after_ns": 61.198190807384876,
+            "change_percent": -40.07038415053202,
+            "paired_change_percent": -40.08981444178497,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 164.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 1499.87831311977,
+            "after_ns": 947.0564750986102,
+            "change_percent": -36.85777927352532,
+            "paired_change_percent": -36.894577619463476,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4132.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 1460.5982274741507,
+            "after_ns": 934.2097488921713,
+            "change_percent": -36.03923849012717,
+            "paired_change_percent": -35.59476651581422,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4132.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 33.35877423587742,
+            "after_ns": 35.26848262684827,
+            "change_percent": 5.724755884216348,
+            "paired_change_percent": 5.240916305390408,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 157.55035077178437,
+            "after_ns": 151.1059058470609,
+            "change_percent": -4.090403412721311,
+            "paired_change_percent": -3.764583666777721,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 9755.572636815921,
+            "after_ns": 11601.990049751244,
+            "change_percent": 18.926796833711723,
+            "paired_change_percent": 20.072496601721813,
+            "before_allocations": 4.0,
+            "after_allocations": 4.0,
+            "before_allocated_bytes": 6193.0,
+            "after_allocated_bytes": 6193.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 1907.1672354948805,
+            "after_ns": 1402.6778682068784,
+            "change_percent": -26.452287869610704,
+            "paired_change_percent": -26.687643173306096,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4132.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 2023.0668678269303,
+            "after_ns": 1481.3299207931464,
+            "change_percent": -26.77800500067943,
+            "paired_change_percent": -25.61822228737848,
+            "before_allocations": 3.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 5172.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 451.1236268332125,
+            "after_ns": 450.11209502035354,
+            "change_percent": -0.22422496909765277,
+            "paired_change_percent": -0.22422496909765277,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      }
+    },
+    "P3": {
+      "win32": {
+        "before": "p2",
+        "after": "p3c",
+        "source_sha256": "fba1a952d0665560d624fee1b9ec7f0495d004314c3a52f99d7b97e250a84f24",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 47.87644787644788,
+            "after_ns": 33.85965385965386,
+            "change_percent": -29.27701330927137,
+            "paired_change_percent": -29.288856304985334,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 30.0,
+            "after_allocated_bytes": 30.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 73.3083501165946,
+            "after_ns": 57.24990135743391,
+            "change_percent": -21.905347390331688,
+            "paired_change_percent": -22.533343792146265,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 144.65236502662208,
+            "after_ns": 122.54866313625678,
+            "change_percent": -15.280567231857766,
+            "paired_change_percent": -14.892136919561016,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 270.0,
+            "after_allocated_bytes": 270.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 720.2933237358286,
+            "after_ns": 670.2537340291525,
+            "change_percent": -6.947112802204525,
+            "paired_change_percent": -7.2294108123591165,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42303.78787878787,
+            "after_ns": 39770.88744588745,
+            "change_percent": -5.9874081256219736,
+            "paired_change_percent": -6.36039869627446,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131086.0,
+            "after_allocated_bytes": 131086.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3521.342572542226,
+            "after_ns": 3538.4148982243396,
+            "change_percent": 0.48482433419672066,
+            "paired_change_percent": 0.39381707197005955,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 686.0,
+            "after_allocated_bytes": 686.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2252.4065096952904,
+            "after_ns": 2304.7783933518003,
+            "change_percent": 2.3251523839537658,
+            "paired_change_percent": 1.6097889707497037,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1358.0,
+            "after_allocated_bytes": 1358.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 139156.3139931741,
+            "after_ns": 141251.19453924915,
+            "change_percent": 1.5054153749558319,
+            "paired_change_percent": 1.5169329481272698,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87374.0,
+            "after_allocated_bytes": 87374.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 57.08523603240106,
+            "after_ns": 56.418586244068706,
+            "change_percent": -1.1678147182468956,
+            "paired_change_percent": -1.2903617354524943,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 275.54617658831876,
+            "after_ns": 278.6360859275697,
+            "change_percent": 1.1213762344695732,
+            "paired_change_percent": 0.8366308074300388,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 281.4137062521524,
+            "after_ns": 276.81456922339345,
+            "change_percent": -1.6342974512542185,
+            "paired_change_percent": -1.5799020189520285,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 30.37300545648442,
+            "after_ns": 28.362711497855805,
+            "change_percent": -6.618686324963063,
+            "paired_change_percent": -3.5868201527524013,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 357.19293539011846,
+            "after_ns": 359.00827185334225,
+            "change_percent": 0.5082229471423005,
+            "paired_change_percent": 0.5125546817710491,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 2299.2667954984654,
+            "after_ns": 2332.425826986472,
+            "change_percent": 1.4421567585338968,
+            "paired_change_percent": 0.03802920935811471,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1374.0,
+            "after_allocated_bytes": 1374.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 754.8114177275244,
+            "after_ns": 701.9866371471495,
+            "change_percent": -6.9984077267156275,
+            "paired_change_percent": -6.607948147247422,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 829.8097749317261,
+            "after_ns": 778.4796120161973,
+            "change_percent": -6.185774675858946,
+            "paired_change_percent": -5.703734215871492,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3094.0,
+            "after_allocated_bytes": 3094.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 280.24346437836755,
+            "after_ns": 285.0628617042507,
+            "change_percent": 1.7197180089724595,
+            "paired_change_percent": 2.79546033792597,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2072.0,
+            "after_allocated_bytes": 2072.0
+          }
+        ]
+      },
+      "win64": {
+        "before": "p2",
+        "after": "p3c",
+        "source_sha256": "fba1a952d0665560d624fee1b9ec7f0495d004314c3a52f99d7b97e250a84f24",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 61.5375324596896,
+            "after_ns": 40.119901838604655,
+            "change_percent": -34.804175216344,
+            "paired_change_percent": -32.44079079989578,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 34.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 77.12947047891599,
+            "after_ns": 55.98125867048241,
+            "change_percent": -27.41910670087465,
+            "paired_change_percent": -29.022773120130285,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 146.995706491413,
+            "after_ns": 121.85620621241243,
+            "change_percent": -17.102200383294274,
+            "paired_change_percent": -15.089623729595502,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 274.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 730.8345401882694,
+            "after_ns": 663.7708182476466,
+            "change_percent": -9.176320802154015,
+            "paired_change_percent": -8.715400707063303,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 44788.96103896104,
+            "after_ns": 39807.683982683986,
+            "change_percent": -11.121662438081426,
+            "paired_change_percent": -11.530022955176989,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131090.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2290.5586334256695,
+            "after_ns": 2313.0367036011085,
+            "change_percent": 0.9813357251554411,
+            "paired_change_percent": 0.7952597062625744,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 690.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1933.8699049232796,
+            "after_ns": 1945.072013555493,
+            "change_percent": 0.5792586462871396,
+            "paired_change_percent": 2.176804814486988,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1362.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 116761.79401993356,
+            "after_ns": 116674.41860465116,
+            "change_percent": -0.07483219662374196,
+            "paired_change_percent": -0.4435558729025457,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87378.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 57.39428145771259,
+            "after_ns": 58.067270226908086,
+            "change_percent": 1.172571120506749,
+            "paired_change_percent": 0.9846515348465257,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 275.4119547657512,
+            "after_ns": 274.49676898222936,
+            "change_percent": -0.33229704364149404,
+            "paired_change_percent": -0.3666071876244348,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 276.58144571972224,
+            "after_ns": 286.7526298388022,
+            "change_percent": 3.677464369532224,
+            "paired_change_percent": 3.320173545208349,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 39.87515822571914,
+            "after_ns": 42.40180172907203,
+            "change_percent": 6.336384896708003,
+            "paired_change_percent": 7.507918591277929,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 156.98208817324132,
+            "after_ns": 164.21635162616147,
+            "change_percent": 4.608336872762564,
+            "paired_change_percent": 4.075019816897929,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 987.961650472926,
+            "after_ns": 987.3276461946858,
+            "change_percent": -0.06417296439965581,
+            "paired_change_percent": -0.32317951846515536,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1378.0,
+            "after_allocated_bytes": 1378.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 746.9717485178951,
+            "after_ns": 687.5320207860645,
+            "change_percent": -7.9574264822957375,
+            "paired_change_percent": -8.319084974034963,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 839.1240725474032,
+            "after_ns": 770.4018961253092,
+            "change_percent": -8.189751512367893,
+            "paired_change_percent": -7.291684751202254,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3106.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 628.2828441869252,
+            "after_ns": 627.7915984380905,
+            "change_percent": -0.07818863007004184,
+            "paired_change_percent": 0.23477559850086926,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      },
+      "fpc64": {
+        "before": "p2",
+        "after": "p3c",
+        "source_sha256": "fba1a952d0665560d624fee1b9ec7f0495d004314c3a52f99d7b97e250a84f24",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 61.46727811467278,
+            "after_ns": 38.98736369987363,
+            "change_percent": -36.572165067828166,
+            "paired_change_percent": -32.791085434988275,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 34.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 79.39178578390275,
+            "after_ns": 65.04245828452255,
+            "change_percent": -18.07407070857151,
+            "paired_change_percent": -19.12130880199093,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 219.3532288651562,
+            "after_ns": 151.9695911102239,
+            "change_percent": -30.719236777843506,
+            "paired_change_percent": -31.17122825378047,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 274.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 1410.8625626342161,
+            "after_ns": 964.59201861131,
+            "change_percent": -31.631043011707405,
+            "paired_change_percent": -33.14088137286476,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 84979.39484978541,
+            "after_ns": 56431.54506437768,
+            "change_percent": -33.59384923353549,
+            "paired_change_percent": -33.55508841344067,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131090.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2353.052025864626,
+            "after_ns": 2425.817167942101,
+            "change_percent": 3.0923728535384942,
+            "paired_change_percent": 3.0587880463468053,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 690.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1814.3715341959335,
+            "after_ns": 1895.6330868761552,
+            "change_percent": 4.47877136235133,
+            "paired_change_percent": 3.512231112694142,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1362.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 115624.78171091445,
+            "after_ns": 118147.79351032448,
+            "change_percent": 2.1820683784883332,
+            "paired_change_percent": 2.2076368678304314,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87378.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 61.118334543237765,
+            "after_ns": 62.062650471126474,
+            "change_percent": 1.5450616168551923,
+            "paired_change_percent": 1.3371478220308486,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 937.7556564964004,
+            "after_ns": 946.5804479488058,
+            "change_percent": 0.9410544624573358,
+            "paired_change_percent": 0.8279889237135851,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 937.8942629519635,
+            "after_ns": 943.1174044218168,
+            "change_percent": 0.5569008870375036,
+            "paired_change_percent": 0.5227202472251502,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 35.38470863087367,
+            "after_ns": 36.29909415498546,
+            "change_percent": 2.584126193182712,
+            "paired_change_percent": 2.5740623582129363,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 151.27199215063465,
+            "after_ns": 151.75549725812687,
+            "change_percent": 0.3196263238278485,
+            "paired_change_percent": 0.612769789214962,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 9719.393939393938,
+            "after_ns": 9715.030303030304,
+            "change_percent": -0.0448961775893264,
+            "paired_change_percent": -0.6011099332792869,
+            "before_allocations": 4.0,
+            "after_allocations": 4.0,
+            "before_allocated_bytes": 6193.0,
+            "after_allocated_bytes": 6193.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 1418.9418379641463,
+            "after_ns": 958.5819124466026,
+            "change_percent": -32.44388974942438,
+            "paired_change_percent": -32.384939671267844,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 1965.4513970727999,
+            "after_ns": 1040.2394981942596,
+            "change_percent": -47.07376128743165,
+            "paired_change_percent": -31.71388169262088,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3106.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 454.63917525773195,
+            "after_ns": 460.00177989250153,
+            "change_percent": 1.179529817625058,
+            "paired_change_percent": 0.681249434330411,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      }
+    },
+    "P4": {
+      "win32": {
+        "before": "p3c-guard",
+        "after": "p4d",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 40.416707222918895,
+            "after_ns": 33.31096833210326,
+            "change_percent": -17.581191984848843,
+            "paired_change_percent": -17.39507587271154,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 30.0,
+            "after_allocated_bytes": 30.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 65.8355818674221,
+            "after_ns": 48.79809410759381,
+            "change_percent": -25.878844352189255,
+            "paired_change_percent": -25.734401002012607,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 136.95773715798362,
+            "after_ns": 73.64904954245681,
+            "change_percent": -46.22498073438444,
+            "paired_change_percent": -46.305549024218195,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 270.0,
+            "after_allocated_bytes": 270.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 693.1115203883161,
+            "after_ns": 366.9948534347729,
+            "change_percent": -47.05111044335782,
+            "paired_change_percent": -47.840227817745806,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 41004.18963616317,
+            "after_ns": 19572.54685777288,
+            "change_percent": -52.266958495111695,
+            "paired_change_percent": -52.74933585725502,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131086.0,
+            "after_allocated_bytes": 131086.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3521.865680543958,
+            "after_ns": 3159.1792914231187,
+            "change_percent": -10.298132354236234,
+            "paired_change_percent": -7.55650537759297,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 686.0,
+            "after_allocated_bytes": 686.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2341.8903740312253,
+            "after_ns": 1904.2008311805007,
+            "change_percent": -18.689582898677926,
+            "paired_change_percent": -19.385271356868273,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1358.0,
+            "after_allocated_bytes": 1358.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 144805.69105691055,
+            "after_ns": 117309.34959349592,
+            "change_percent": -18.98843979316269,
+            "paired_change_percent": -20.2098691265559,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87374.0,
+            "after_allocated_bytes": 87374.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 61.05698712341552,
+            "after_ns": 59.75160016524309,
+            "change_percent": -2.137981285473234,
+            "paired_change_percent": -3.0866067334546776,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 78.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 279.7903859998893,
+            "after_ns": 279.4767957024976,
+            "change_percent": -0.11208044060232458,
+            "paired_change_percent": -0.12420393196990176,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 277.6791643608191,
+            "after_ns": 277.89637520752626,
+            "change_percent": 0.07822367486851611,
+            "paired_change_percent": 0.15187149719775306,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 28.27536972742989,
+            "after_ns": 28.322325742338425,
+            "change_percent": 0.16606684673334815,
+            "paired_change_percent": -0.5356963093280709,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 355.82923832923836,
+            "after_ns": 356.3899613899614,
+            "change_percent": 0.15758206474427716,
+            "paired_change_percent": 0.0638114924744082,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 534.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 2418.022403378101,
+            "after_ns": 2296.088205970324,
+            "change_percent": -5.042724055717118,
+            "paired_change_percent": -4.766224347982151,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1374.0,
+            "after_allocated_bytes": 1374.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 710.3113491797791,
+            "after_ns": 386.7390270117879,
+            "change_percent": -45.55359034339396,
+            "paired_change_percent": -46.14877078364099,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2062.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 789.2039536121849,
+            "after_ns": 463.83648526654474,
+            "change_percent": -41.22729832465155,
+            "paired_change_percent": -40.64820667938819,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3094.0,
+            "after_allocated_bytes": 3094.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 284.08903717560344,
+            "after_ns": 278.6236790306144,
+            "change_percent": -1.9238187433507914,
+            "paired_change_percent": -1.9238187433507914,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2072.0,
+            "after_allocated_bytes": 2072.0
+          }
+        ]
+      },
+      "win64": {
+        "before": "p3c-guard",
+        "after": "p4d",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 44.44714544447145,
+            "after_ns": 37.53922837539229,
+            "change_percent": -15.541868887191734,
+            "paired_change_percent": -15.541868887191734,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 34.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 59.407582556516104,
+            "after_ns": 42.09213982563548,
+            "change_percent": -29.146856319911617,
+            "paired_change_percent": -28.99013140822061,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 128.12628271720678,
+            "after_ns": 70.35447335748854,
+            "change_percent": -45.08974125724773,
+            "paired_change_percent": -46.13460303364283,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 274.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 672.5776281331837,
+            "after_ns": 283.6394245485155,
+            "change_percent": -57.82800190131372,
+            "paired_change_percent": -58.18107295514546,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 39932.118226600986,
+            "after_ns": 14901.970443349754,
+            "change_percent": -62.681743155256086,
+            "paired_change_percent": -62.63353963075499,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131090.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2458.207271762208,
+            "after_ns": 2138.4023354564756,
+            "change_percent": -13.009681485340119,
+            "paired_change_percent": -12.898417980499799,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 690.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1997.7337678616195,
+            "after_ns": 1702.1659563800451,
+            "change_percent": -14.795155202184485,
+            "paired_change_percent": -16.821237822757272,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1362.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 123388.23529411765,
+            "after_ns": 101485.44891640867,
+            "change_percent": -17.751114055160777,
+            "paired_change_percent": -17.63038678094919,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87378.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 56.4593253289434,
+            "after_ns": 54.618490060254295,
+            "change_percent": -3.2604627454614787,
+            "paired_change_percent": -2.791470844837307,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 274.9977794327647,
+            "after_ns": 280.1009845653496,
+            "change_percent": 1.8557259419007988,
+            "paired_change_percent": 1.0226017227501938,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 277.0935276536091,
+            "after_ns": 279.57521093977306,
+            "change_percent": 0.8956121448156829,
+            "paired_change_percent": 0.6114134793254955,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 43.00562038869433,
+            "after_ns": 41.96478141751605,
+            "change_percent": -2.4202394053869036,
+            "paired_change_percent": -2.2213819665500067,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 167.1701391861122,
+            "after_ns": 167.15259112153532,
+            "change_percent": -0.010497128651287824,
+            "paired_change_percent": 1.8221479173440747,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 994.0912969283277,
+            "after_ns": 994.6885665529011,
+            "change_percent": 0.06008196897195894,
+            "paired_change_percent": 0.06008196897195894,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1378.0,
+            "after_allocated_bytes": 1378.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 694.5714836426081,
+            "after_ns": 302.7685783875659,
+            "change_percent": -56.40929904007468,
+            "paired_change_percent": -56.34559000850394,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 773.0535803705558,
+            "after_ns": 387.8337506259389,
+            "change_percent": -49.830935335680806,
+            "paired_change_percent": -49.80258711349218,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3106.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 646.4189002934929,
+            "after_ns": 630.7972953251933,
+            "change_percent": -2.41663802856118,
+            "paired_change_percent": -2.9476042451488604,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      },
+      "fpc64": {
+        "before": "p3c-guard",
+        "after": "p4d",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 40.84559707057597,
+            "after_ns": 35.88249881363043,
+            "change_percent": -12.15087699261671,
+            "paired_change_percent": -12.825592165395038,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 34.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 77.16608564124252,
+            "after_ns": 52.504505328288886,
+            "change_percent": -31.95909201304995,
+            "paired_change_percent": -31.646611906187605,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 202.6522390372398,
+            "after_ns": 120.45194463095915,
+            "change_percent": -40.562243376534,
+            "paired_change_percent": -40.17437978324515,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 274.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 1381.4665139843155,
+            "after_ns": 779.2352002220833,
+            "change_percent": -43.59362370828117,
+            "paired_change_percent": -43.71116535325213,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 85756.98924731182,
+            "after_ns": 46177.63440860214,
+            "change_percent": -46.15292022970635,
+            "paired_change_percent": -46.18016691988964,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131090.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2400.2585649644475,
+            "after_ns": 1902.4656939698957,
+            "change_percent": -20.739135285698907,
+            "paired_change_percent": -20.739135285698907,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 690.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1885.3434443288243,
+            "after_ns": 1471.8886056191468,
+            "change_percent": -21.929948092659902,
+            "paired_change_percent": -21.772362968834557,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1362.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 118325.6656716418,
+            "after_ns": 91500.29850746269,
+            "change_percent": -22.670793366690635,
+            "paired_change_percent": -22.12319401249083,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87378.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 70.93012834301284,
+            "after_ns": 70.80214741521473,
+            "change_percent": -0.18043239281788637,
+            "paired_change_percent": -1.0319665269086564,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 82.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 1172.1976740333323,
+            "after_ns": 1166.253570126901,
+            "change_percent": -0.5070905733824294,
+            "paired_change_percent": -0.16066032217101345,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 1165.7380938224626,
+            "after_ns": 1164.7690112372914,
+            "change_percent": -0.0831303866886457,
+            "paired_change_percent": 0.008935789771058467,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 40.68521804603512,
+            "after_ns": 40.23778745508266,
+            "change_percent": -1.0997374782314884,
+            "paired_change_percent": -1.0089116380068264,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 150.12287215914185,
+            "after_ns": 150.2129257923909,
+            "change_percent": 0.0599866175978514,
+            "paired_change_percent": 0.47295200505999,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 538.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 9611.11668667467,
+            "after_ns": 9957.358463385353,
+            "change_percent": 3.602513505956395,
+            "paired_change_percent": 1.5177794294660707,
+            "before_allocations": 4.0,
+            "after_allocations": 4.0,
+            "before_allocated_bytes": 6193.0,
+            "after_allocated_bytes": 6193.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 1414.4071091766411,
+            "after_ns": 788.1320275661951,
+            "change_percent": -44.27827586182137,
+            "paired_change_percent": -44.69063426363918,
+            "before_allocations": 1.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2066.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 1496.6537418755804,
+            "after_ns": 879.3202971216342,
+            "change_percent": -41.24757968268029,
+            "paired_change_percent": -41.24757968268029,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3106.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 447.30580452411436,
+            "after_ns": 448.8017392232181,
+            "change_percent": 0.33443221258782074,
+            "paired_change_percent": 0.4571407503594749,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      }
+    },
+    "Final": {
+      "win32": {
+        "before": "baseline-final",
+        "after": "final",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 145.92668739996617,
+            "after_ns": 33.121315827141544,
+            "change_percent": -77.30277002974768,
+            "paired_change_percent": -77.30277002974768,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 61.0,
+            "after_allocated_bytes": 30.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 169.37203229131944,
+            "after_ns": 48.09812781870239,
+            "change_percent": -71.60208378678851,
+            "paired_change_percent": -71.72752720967641,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 109.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 237.8385805964515,
+            "after_ns": 72.88667421668555,
+            "change_percent": -69.3545622270784,
+            "paired_change_percent": -69.4349671192816,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 301.0,
+            "after_allocated_bytes": 270.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 824.4595744680851,
+            "after_ns": 353.0473091364205,
+            "change_percent": -57.17833595853436,
+            "paired_change_percent": -57.06698795653272,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2093.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42748.76305662452,
+            "after_ns": 19402.63881253436,
+            "change_percent": -54.61239711934156,
+            "paired_change_percent": -54.487425145064705,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131117.0,
+            "after_allocated_bytes": 131086.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3649.037672170027,
+            "after_ns": 3155.527684028095,
+            "change_percent": -13.524387317395082,
+            "paired_change_percent": -13.296995577168769,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 717.0,
+            "after_allocated_bytes": 686.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2329.6669360424844,
+            "after_ns": 1866.026899099515,
+            "change_percent": -19.90155887822217,
+            "paired_change_percent": -21.43989773860889,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1389.0,
+            "after_allocated_bytes": 1358.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 142822.4315068493,
+            "after_ns": 116023.45890410959,
+            "change_percent": -18.76384004949149,
+            "paired_change_percent": -19.383809509056615,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87405.0,
+            "after_allocated_bytes": 87374.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 88.36655515679595,
+            "after_ns": 58.368144933516895,
+            "change_percent": -33.94769680684105,
+            "paired_change_percent": -33.85118843237416,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 89.0,
+            "after_allocated_bytes": 78.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 310.66637376622,
+            "after_ns": 280.8333270208237,
+            "change_percent": -9.602921096264506,
+            "paired_change_percent": -9.187631431654308,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2073.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 313.5353403515069,
+            "after_ns": 278.4238068629091,
+            "change_percent": -11.198588793605857,
+            "paired_change_percent": -11.198588793605857,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2073.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 61.583667072958384,
+            "after_ns": 28.757991094748885,
+            "change_percent": -53.30256793464541,
+            "paired_change_percent": -52.57512827285564,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 544.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 392.94732884099705,
+            "after_ns": 356.07850704030244,
+            "change_percent": -9.38263708508712,
+            "paired_change_percent": -9.26714434245165,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 544.0,
+            "after_allocated_bytes": 534.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 2528.391394746892,
+            "after_ns": 2533.0546951245387,
+            "change_percent": 0.18443744063263434,
+            "paired_change_percent": -1.373522176829467,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1405.0,
+            "after_allocated_bytes": 1374.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 865.8242465966377,
+            "after_ns": 391.7542028470541,
+            "change_percent": -54.75361144170394,
+            "paired_change_percent": -54.9861841776628,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2093.0,
+            "after_allocated_bytes": 2062.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 929.9076320208994,
+            "after_ns": 463.1542731852957,
+            "change_percent": -50.19351844884241,
+            "paired_change_percent": -50.19351844884241,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3125.0,
+            "after_allocated_bytes": 3094.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 291.3268174073703,
+            "after_ns": 279.255214846899,
+            "change_percent": -4.143663349602056,
+            "paired_change_percent": -4.2480448972305185,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2072.0,
+            "after_allocated_bytes": 2072.0
+          }
+        ]
+      },
+      "win64": {
+        "before": "baseline-final",
+        "after": "final",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 187.7913921410627,
+            "after_ns": 36.39996207991658,
+            "change_percent": -80.61681013974584,
+            "paired_change_percent": -80.69164919790956,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 89.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 205.6917285572271,
+            "after_ns": 42.23951578037181,
+            "change_percent": -79.46465029165233,
+            "paired_change_percent": -79.460388111345,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 137.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 271.6582696526288,
+            "after_ns": 69.64264190838932,
+            "change_percent": -74.36387929679378,
+            "paired_change_percent": -74.54183078236628,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 329.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 849.7578679494476,
+            "after_ns": 281.54427634192695,
+            "change_percent": -66.86770585351307,
+            "paired_change_percent": -66.85317442265993,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2121.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 42297.89473684211,
+            "after_ns": 14773.421052631578,
+            "change_percent": -65.07291640743598,
+            "paired_change_percent": -65.09521953479221,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 131145.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 2361.2566509641783,
+            "after_ns": 2147.161690446335,
+            "change_percent": -9.06699237587838,
+            "paired_change_percent": -9.812019225984937,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 745.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 1969.9328367322016,
+            "after_ns": 1635.6111857369644,
+            "change_percent": -16.971220782827423,
+            "paired_change_percent": -17.222341784670657,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1417.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 113676.27365356624,
+            "after_ns": 100793.30422125182,
+            "change_percent": -11.333032846920965,
+            "paired_change_percent": -11.49921607607649,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 87433.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 108.14412657224831,
+            "after_ns": 58.90523480504629,
+            "change_percent": -45.53080535012393,
+            "paired_change_percent": -45.53080535012393,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 101.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 330.87253980872543,
+            "after_ns": 283.3831193338312,
+            "change_percent": -14.35278385518104,
+            "paired_change_percent": -12.500684144272334,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2085.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 353.16427474360455,
+            "after_ns": 282.5869927829433,
+            "change_percent": -19.984264266791996,
+            "paired_change_percent": -19.83144247874843,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2085.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 89.18313900629326,
+            "after_ns": 42.09083772768196,
+            "change_percent": -52.80404099174869,
+            "paired_change_percent": -52.240984105656985,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 208.4221634221634,
+            "after_ns": 165.59251559251558,
+            "change_percent": -20.549468984685415,
+            "paired_change_percent": -21.20579810727472,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 1132.8250353940539,
+            "after_ns": 1006.5567484662577,
+            "change_percent": -11.146318538402856,
+            "paired_change_percent": -12.720368263324943,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1433.0,
+            "after_allocated_bytes": 1378.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 881.5302335231333,
+            "after_ns": 298.893473800687,
+            "change_percent": -66.09379208627637,
+            "paired_change_percent": -65.60023878221072,
+            "before_allocations": 4.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2121.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 958.5483450612459,
+            "after_ns": 382.2314887209336,
+            "change_percent": -60.12392168946772,
+            "paired_change_percent": -60.07856080961279,
+            "before_allocations": 5.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 3161.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 643.3459521242532,
+            "after_ns": 629.2069616815687,
+            "change_percent": -2.197727427366125,
+            "paired_change_percent": -2.0723228811932115,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      },
+      "fpc64": {
+        "before": "baseline-final",
+        "after": "final",
+        "source_sha256": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+        "rows": [
+          {
+            "name": "ascii8",
+            "before_ns": 127.7688311567727,
+            "after_ns": 35.72112788086716,
+            "change_percent": -72.04237719210468,
+            "paired_change_percent": -71.94417368103852,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 123.0,
+            "after_allocated_bytes": 34.0
+          },
+          {
+            "name": "ascii32",
+            "before_ns": 179.5492618911796,
+            "after_ns": 52.44535103727585,
+            "change_percent": -70.79055046794807,
+            "paired_change_percent": -70.9445192300011,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 219.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "ascii128",
+            "before_ns": 385.9530481590326,
+            "after_ns": 121.33908728391762,
+            "change_percent": -68.56117917381503,
+            "paired_change_percent": -68.67827916548812,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 603.0,
+            "after_allocated_bytes": 274.0
+          },
+          {
+            "name": "ascii1k",
+            "before_ns": 2180.907060825181,
+            "after_ns": 781.0904934070609,
+            "change_percent": -64.18506283750015,
+            "paired_change_percent": -64.31924737606698,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4187.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "ascii64k",
+            "before_ns": 132595.74468085106,
+            "after_ns": 46683.6317512275,
+            "change_percent": -64.79251135578157,
+            "paired_change_percent": -64.65847837383319,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 262235.0,
+            "after_allocated_bytes": 131090.0
+          },
+          {
+            "name": "chinese1k",
+            "before_ns": 3082.823732021196,
+            "after_ns": 1891.1582891748676,
+            "change_percent": -38.65499770449201,
+            "paired_change_percent": -38.61952447618025,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 1435.0,
+            "after_allocated_bytes": 690.0
+          },
+          {
+            "name": "mixed1k",
+            "before_ns": 2475.394869838848,
+            "after_ns": 1477.7088776580529,
+            "change_percent": -40.30411488433545,
+            "paired_change_percent": -40.186917248513,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 2779.0,
+            "after_allocated_bytes": 1362.0
+          },
+          {
+            "name": "mixed64k",
+            "before_ns": 180153.12144212524,
+            "after_ns": 92551.42694497154,
+            "change_percent": -48.62624294039558,
+            "paired_change_percent": -48.407530598008755,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 174811.0,
+            "after_allocated_bytes": 87378.0
+          },
+          {
+            "name": "explicit32",
+            "before_ns": 125.69865202286495,
+            "after_ns": 70.59539553551892,
+            "change_percent": -43.837587436755165,
+            "paired_change_percent": -43.66529473986462,
+            "before_allocations": 3.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 183.0,
+            "after_allocated_bytes": 82.0
+          },
+          {
+            "name": "explicit1k",
+            "before_ns": 1711.9626170348147,
+            "after_ns": 1176.6089446413964,
+            "change_percent": -31.271341270329355,
+            "paired_change_percent": -30.47540596811399,
+            "before_allocations": 3.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4151.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "bom1k",
+            "before_ns": 1700.8774235333447,
+            "after_ns": 1172.3466279458466,
+            "change_percent": -31.074008524938044,
+            "paired_change_percent": -31.093015909656962,
+            "before_allocations": 3.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4151.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "utf16le",
+            "before_ns": 55.17587834170818,
+            "after_ns": 40.794680304421355,
+            "change_percent": -26.06428473729595,
+            "paired_change_percent": -26.4598233837951,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "utf16be",
+            "before_ns": 159.3106072178055,
+            "after_ns": 151.03835913247212,
+            "change_percent": -5.192528124648832,
+            "paired_change_percent": -5.138510693502352,
+            "before_allocations": 2.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 556.0,
+            "after_allocated_bytes": 538.0
+          },
+          {
+            "name": "fallback",
+            "before_ns": 9847.260699437516,
+            "after_ns": 9628.882367326974,
+            "change_percent": -2.2176556382123014,
+            "paired_change_percent": -0.9768452816180329,
+            "before_allocations": 7.0,
+            "after_allocations": 4.0,
+            "before_allocated_bytes": 6248.0,
+            "after_allocated_bytes": 6193.0
+          },
+          {
+            "name": "memory",
+            "before_ns": 2212.277497793343,
+            "after_ns": 797.2694968822071,
+            "change_percent": -63.96159624290121,
+            "paired_change_percent": -63.96159624290121,
+            "before_allocations": 5.0,
+            "after_allocations": 1.0,
+            "before_allocated_bytes": 4187.0,
+            "after_allocated_bytes": 2066.0
+          },
+          {
+            "name": "stream",
+            "before_ns": 2267.5120260905014,
+            "after_ns": 881.5735833673053,
+            "change_percent": -61.121547615901385,
+            "paired_change_percent": -61.4155908816971,
+            "before_allocations": 6.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 5227.0,
+            "after_allocated_bytes": 3106.0
+          },
+          {
+            "name": "custom",
+            "before_ns": 440.0315133344723,
+            "after_ns": 455.16046007925183,
+            "change_percent": 3.438150742917312,
+            "paired_change_percent": 3.0832227818946345,
+            "before_allocations": 2.0,
+            "after_allocations": 2.0,
+            "before_allocated_bytes": 2084.0,
+            "after_allocated_bytes": 2084.0
+          }
+        ]
+      }
+    }
+  },
+  "additional_evidence": {
+    "bin\\baseline-final\\win32\\aa.json": {
+      "before": "baseline-final",
+      "after": "baseline-final",
+      "rounds": 7,
+      "target_seconds": 0.08,
+      "affinity_mask": 4,
+      "rows": [
+        {
+          "name": "ascii32",
+          "count": 419067,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 70840.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "after": {
+                "us": 70245.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 73463.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "before": {
+                "us": 71508.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 71308.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "after": {
+                "us": 69569.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 71397.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "before": {
+                "us": 71891.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 70790.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "after": {
+                "us": 72200.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 75038.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "before": {
+                "us": 72892.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 71751.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "after": {
+                "us": 70019.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 70426.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              },
+              "before": {
+                "us": 72663.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 34363494
+              }
+            }
+          ],
+          "before_us": 71751.2,
+          "after_us": 71397.1,
+          "change_percent": -0.49351090992205693,
+          "paired_change_percent": -0.687841138603118,
+          "allocations": {
+            "before": {
+              "us": 162.9,
+              "calls": 4000,
+              "bytes": 109000,
+              "checksum": 82000
+            },
+            "after": {
+              "us": 177.4,
+              "calls": 4000,
+              "bytes": 109000,
+              "checksum": 82000
+            }
+          }
+        },
+        {
+          "name": "ascii64k",
+          "count": 1875,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 79817.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "after": {
+                "us": 80349.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 84546.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "before": {
+                "us": 79785.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80209.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "after": {
+                "us": 79545.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81474.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "before": {
+                "us": 79170.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80356.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "after": {
+                "us": 79535.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81774.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "before": {
+                "us": 83128.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 90135.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "after": {
+                "us": 82030.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 80672.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              },
+              "before": {
+                "us": 79437.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122973750
+              }
+            }
+          ],
+          "before_us": 80209.0,
+          "after_us": 81474.7,
+          "change_percent": 1.5780024685509098,
+          "paired_change_percent": -0.8270892293882115,
+          "allocations": {
+            "before": {
+              "us": 43207.3,
+              "calls": 4000,
+              "bytes": 131117000,
+              "checksum": 65586000
+            },
+            "after": {
+              "us": 43371.9,
+              "calls": 4000,
+              "bytes": 131117000,
+              "checksum": 65586000
+            }
+          }
+        },
+        {
+          "name": "chinese1k",
+          "count": 21856,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 80491.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "after": {
+                "us": 79329.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 78660.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "before": {
+                "us": 86339.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 82603.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "after": {
+                "us": 79144.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79573.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "before": {
+                "us": 79861.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79670.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "after": {
+                "us": 78686.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79164.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "before": {
+                "us": 78849.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79756.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "after": {
+                "us": 78399.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 78963.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              },
+              "before": {
+                "us": 79563.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 789722848
+              }
+            }
+          ],
+          "before_us": 79756.3,
+          "after_us": 78963.4,
+          "change_percent": -0.9941534399163565,
+          "paired_change_percent": -1.2345864963650088,
+          "allocations": {
+            "before": {
+              "us": 3657.8,
+              "calls": 4000,
+              "bytes": 717000,
+              "checksum": 36133000
+            },
+            "after": {
+              "us": 3635.4,
+              "calls": 4000,
+              "bytes": 717000,
+              "checksum": 36133000
+            }
+          }
+        },
+        {
+          "name": "fallback",
+          "count": 25426,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 67770.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "after": {
+                "us": 62079.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 58331.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "before": {
+                "us": 70882.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 68048.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "after": {
+                "us": 68068.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 62034.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "before": {
+                "us": 67349.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 61458.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "after": {
+                "us": 59223.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 61300.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "before": {
+                "us": 69916.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 61084.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "after": {
+                "us": 68741.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 66882.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              },
+              "before": {
+                "us": 60875.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 18942370
+              }
+            }
+          ],
+          "before_us": 67349.4,
+          "after_us": 62034.2,
+          "change_percent": -7.891978250734222,
+          "paired_change_percent": -3.6370884417940563,
+          "allocations": {
+            "before": {
+              "us": 2685.0,
+              "calls": 4000,
+              "bytes": 1405000,
+              "checksum": 745000
+            },
+            "after": {
+              "us": 2976.3,
+              "calls": 4000,
+              "bytes": 1405000,
+              "checksum": 745000
+            }
+          }
+        }
+      ]
+    },
+    "bin\\baseline-final\\win64\\aa.json": {
+      "before": "baseline-final",
+      "after": "baseline-final",
+      "rounds": 7,
+      "target_seconds": 0.08,
+      "affinity_mask": 4,
+      "rows": [
+        {
+          "name": "ascii32",
+          "count": 397022,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 81269.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "after": {
+                "us": 82848.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81001.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "before": {
+                "us": 82890.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 81521.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "after": {
+                "us": 81269.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81510.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "before": {
+                "us": 81305.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80984.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "after": {
+                "us": 85022.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 82766.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "before": {
+                "us": 83566.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 84415.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "after": {
+                "us": 81883.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 83739.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              },
+              "before": {
+                "us": 82841.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 32555804
+              }
+            }
+          ],
+          "before_us": 82841.6,
+          "after_us": 81883.4,
+          "change_percent": -1.1566652503090413,
+          "paired_change_percent": -0.3094892874754174,
+          "allocations": {
+            "before": {
+              "us": 216.8,
+              "calls": 4000,
+              "bytes": 137000,
+              "checksum": 82000
+            },
+            "after": {
+              "us": 217.5,
+              "calls": 4000,
+              "bytes": 137000,
+              "checksum": 82000
+            }
+          }
+        },
+        {
+          "name": "ascii64k",
+          "count": 1870,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 80561.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "after": {
+                "us": 79029.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79832.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "before": {
+                "us": 78897.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 81457.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "after": {
+                "us": 78839.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79911.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "before": {
+                "us": 83100.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 82937.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "after": {
+                "us": 78780.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79219.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "before": {
+                "us": 78818.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 123468.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "after": {
+                "us": 79664.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 83469.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              },
+              "before": {
+                "us": 80280.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 122645820
+              }
+            }
+          ],
+          "before_us": 81457.9,
+          "after_us": 79664.1,
+          "change_percent": -2.20211913147772,
+          "paired_change_percent": -3.2140529034016208,
+          "allocations": {
+            "before": {
+              "us": 42782.5,
+              "calls": 4000,
+              "bytes": 131145000,
+              "checksum": 65586000
+            },
+            "after": {
+              "us": 42498.5,
+              "calls": 4000,
+              "bytes": 131145000,
+              "checksum": 65586000
+            }
+          }
+        },
+        {
+          "name": "chinese1k",
+          "count": 33641,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 80651.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "after": {
+                "us": 81333.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 84109.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "before": {
+                "us": 79250.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79979.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "after": {
+                "us": 79717.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79473.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "before": {
+                "us": 95560.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80629.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "after": {
+                "us": 79017.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 83475.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "before": {
+                "us": 78829.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79909.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "after": {
+                "us": 79438.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 80108.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              },
+              "before": {
+                "us": 79370.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 1215550253
+              }
+            }
+          ],
+          "before_us": 79909.9,
+          "after_us": 79717.1,
+          "change_percent": -0.24127173228847276,
+          "paired_change_percent": -0.3282086932167694,
+          "allocations": {
+            "before": {
+              "us": 2389.7,
+              "calls": 4000,
+              "bytes": 745000,
+              "checksum": 36133000
+            },
+            "after": {
+              "us": 2405.2,
+              "calls": 4000,
+              "bytes": 745000,
+              "checksum": 36133000
+            }
+          }
+        },
+        {
+          "name": "fallback",
+          "count": 58317,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 64897.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "after": {
+                "us": 69015.1,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 64780.3,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "before": {
+                "us": 65224.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 64294.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "after": {
+                "us": 66119.8,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 64627.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "before": {
+                "us": 64827.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 65024.6,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "after": {
+                "us": 65269.2,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 67558.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "before": {
+                "us": 66430.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 64812.4,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "after": {
+                "us": 65178.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 64773.9,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              },
+              "before": {
+                "us": 66980.7,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 43446165
+              }
+            }
+          ],
+          "before_us": 65024.6,
+          "after_us": 65178.9,
+          "change_percent": 0.2372948084263582,
+          "paired_change_percent": 0.37616532819886306,
+          "allocations": {
+            "before": {
+              "us": 1171.4,
+              "calls": 4000,
+              "bytes": 1433000,
+              "checksum": 745000
+            },
+            "after": {
+              "us": 1177.0,
+              "calls": 4000,
+              "bytes": 1433000,
+              "checksum": 745000
+            }
+          }
+        }
+      ]
+    },
+    "bin\\baseline-final\\fpc64\\aa.json": {
+      "before": "baseline-final",
+      "after": "baseline-final",
+      "rounds": 7,
+      "target_seconds": 0.08,
+      "affinity_mask": 4,
+      "rows": [
+        {
+          "name": "ascii32",
+          "count": 446428,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 79940.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "after": {
+                "us": 81312.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79622.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "before": {
+                "us": 80339.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79267.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "after": {
+                "us": 79742.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79746.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "before": {
+                "us": 80844.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 79668.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "after": {
+                "us": 82257.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79687.094,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "before": {
+                "us": 80362.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80999.695,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "after": {
+                "us": 81259.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81078.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              },
+              "before": {
+                "us": 80588.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 36607096
+              }
+            }
+          ],
+          "before_us": 80362.602,
+          "after_us": 79746.0,
+          "change_percent": -0.7672748077519942,
+          "paired_change_percent": 0.3203814532881655,
+          "allocations": {
+            "before": {
+              "us": 183.7,
+              "calls": 5000,
+              "bytes": 219000,
+              "checksum": 82000
+            },
+            "after": {
+              "us": 195.5,
+              "calls": 5000,
+              "bytes": 219000,
+              "checksum": 82000
+            }
+          }
+        },
+        {
+          "name": "ascii64k",
+          "count": 607,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 78844.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "after": {
+                "us": 79074.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 78755.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "before": {
+                "us": 80677.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 78852.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "after": {
+                "us": 79413.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81573.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "before": {
+                "us": 79096.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 78074.195,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "after": {
+                "us": 78169.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 80895.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "before": {
+                "us": 79401.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 80163.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "after": {
+                "us": 78673.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 97838.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              },
+              "before": {
+                "us": 82140.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 39810702
+              }
+            }
+          ],
+          "before_us": 79401.797,
+          "after_us": 79413.898,
+          "change_percent": 0.01524020923606706,
+          "paired_change_percent": 0.7118293953064514,
+          "allocations": {
+            "before": {
+              "us": 129737.008,
+              "calls": 5000,
+              "bytes": 262235000,
+              "checksum": 65586000
+            },
+            "after": {
+              "us": 134257.703,
+              "calls": 5000,
+              "bytes": 262235000,
+              "checksum": 65586000
+            }
+          }
+        },
+        {
+          "name": "chinese1k",
+          "count": 16165,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 50780.102,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "after": {
+                "us": 49482.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 49334.902,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "before": {
+                "us": 49681.102,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 49517.199,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "after": {
+                "us": 49242.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 50745.902,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "before": {
+                "us": 49387.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 49123.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "after": {
+                "us": 49309.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 49457.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "before": {
+                "us": 50124.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 49516.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "after": {
+                "us": 51454.602,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 79135.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              },
+              "before": {
+                "us": 49363.801,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 584089945
+              }
+            }
+          ],
+          "before_us": 49516.398,
+          "after_us": 49457.898,
+          "change_percent": -0.11814268073376821,
+          "paired_change_percent": 0.37905232623127727,
+          "allocations": {
+            "before": {
+              "us": 3099.4,
+              "calls": 5000,
+              "bytes": 1435000,
+              "checksum": 36133000
+            },
+            "after": {
+              "us": 3113.0,
+              "calls": 5000,
+              "bytes": 1435000,
+              "checksum": 36133000
+            }
+          }
+        },
+        {
+          "name": "fallback",
+          "count": 8363,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 80443.195,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "after": {
+                "us": 80038.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 80969.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "before": {
+                "us": 176967.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 83070.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "after": {
+                "us": 81449.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81569.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "before": {
+                "us": 80796.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 82549.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "after": {
+                "us": 80527.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81828.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "before": {
+                "us": 81266.805,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 84247.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "after": {
+                "us": 80708.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 81116.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              },
+              "before": {
+                "us": 82644.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 9073855
+              }
+            }
+          ],
+          "before_us": 82644.0,
+          "after_us": 81116.898,
+          "change_percent": -1.8478074633367148,
+          "paired_change_percent": -1.9512387612679816,
+          "allocations": {
+            "before": {
+              "us": 10492.1,
+              "calls": 7000,
+              "bytes": 6248000,
+              "checksum": 1085000
+            },
+            "after": {
+              "us": 9651.7,
+              "calls": 7000,
+              "bytes": 6248000,
+              "checksum": 1085000
+            }
+          }
+        }
+      ]
+    },
+    "bin\\final\\fpc64\\repeat.json": {
+      "before": "baseline-final",
+      "after": "final",
+      "rounds": 7,
+      "target_seconds": 0.15,
+      "affinity_mask": 4,
+      "rows": [
+        {
+          "name": "custom",
+          "count": 342935,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 149909.609,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "after": {
+                "us": 155149.594,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 154037.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "before": {
+                "us": 150395.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 151737.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "after": {
+                "us": 154371.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 153806.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "before": {
+                "us": 150689.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 155651.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "after": {
+                "us": 153301.906,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 166652.813,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "before": {
+                "us": 150555.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 152131.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "after": {
+                "us": 156620.594,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 153325.594,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              },
+              "before": {
+                "us": 150474.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 456103550
+              }
+            }
+          ],
+          "before_us": 150689.203,
+          "after_us": 154037.203,
+          "change_percent": 2.221791563925124,
+          "paired_change_percent": 2.0689524783006563,
+          "allocations": {
+            "before": {
+              "us": 464.8,
+              "calls": 2000,
+              "bytes": 2084000,
+              "checksum": 1330000
+            },
+            "after": {
+              "us": 438.2,
+              "calls": 2000,
+              "bytes": 2084000,
+              "checksum": 1330000
+            }
+          }
+        },
+        {
+          "name": "fallback",
+          "count": 15211,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 148339.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "after": {
+                "us": 149671.688,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 146549.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "before": {
+                "us": 150078.313,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 149945.594,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "after": {
+                "us": 149013.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 149396.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "before": {
+                "us": 188167.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 149124.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "after": {
+                "us": 148036.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 147226.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "before": {
+                "us": 150879.188,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 154661.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "after": {
+                "us": 147941.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 148052.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              },
+              "before": {
+                "us": 148800.906,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16503935
+              }
+            }
+          ],
+          "before_us": 150078.313,
+          "after_us": 148036.891,
+          "change_percent": -1.3602378379612978,
+          "paired_change_percent": -2.3513770440636628,
+          "allocations": {
+            "before": {
+              "us": 9631.3,
+              "calls": 7000,
+              "bytes": 6248000,
+              "checksum": 1085000
+            },
+            "after": {
+              "us": 9869.2,
+              "calls": 4000,
+              "bytes": 6193000,
+              "checksum": 1085000
+            }
+          }
+        }
+      ]
+    },
+    "bin\\p2\\fpc64\\repeat.json": {
+      "before": "p1-fixed2",
+      "after": "p2",
+      "rows": [
+        {
+          "name": "fallback",
+          "count": 15655,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 153103.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "after": {
+                "us": 153282.813,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 152326.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "before": {
+                "us": 150834.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 150228.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "after": {
+                "us": 151452.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 152811.609,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "before": {
+                "us": 152775.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 151843.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "after": {
+                "us": 150004.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 150178.109,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "before": {
+                "us": 153602.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 160563.313,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "after": {
+                "us": 153249.094,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 150660.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              },
+              "before": {
+                "us": 152000.094,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 16985675
+              }
+            }
+          ],
+          "before_us": 152000.094,
+          "after_us": 151452.0,
+          "change_percent": -0.36058793489957,
+          "paired_change_percent": -0.8810540604007877,
+          "allocations": {
+            "before": {
+              "us": 10072.9,
+              "calls": 4000,
+              "bytes": 6193000,
+              "checksum": 1085000
+            },
+            "after": {
+              "us": 9644.801,
+              "calls": 4000,
+              "bytes": 6193000,
+              "checksum": 1085000
+            }
+          }
+        },
+        {
+          "name": "utf16le",
+          "count": 3000000,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 111516.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "after": {
+                "us": 106687.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 105883.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "before": {
+                "us": 99761.805,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 100472.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "after": {
+                "us": 112946.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 109981.508,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "before": {
+                "us": 101575.898,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 117840.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "after": {
+                "us": 111988.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 110523.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "before": {
+                "us": 106068.695,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 122803.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "after": {
+                "us": 110077.305,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 107279.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              },
+              "before": {
+                "us": 100497.398,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 171276000000
+              }
+            }
+          ],
+          "before_us": 101575.898,
+          "after_us": 110077.305,
+          "change_percent": 8.369512027351211,
+          "paired_change_percent": 6.136311386908044,
+          "allocations": {
+            "before": {
+              "us": 38.7,
+              "calls": 1000,
+              "bytes": 538000,
+              "checksum": 57092000
+            },
+            "after": {
+              "us": 37.4,
+              "calls": 1000,
+              "bytes": 538000,
+              "checksum": 57092000
+            }
+          }
+        }
+      ]
+    },
+    "bin\\p1-fixed2\\fpc64\\large-repeat.json": {
+      "before": "baseline-fixed",
+      "after": "p1-fixed2",
+      "rows": [
+        {
+          "name": "ascii64k",
+          "count": 1294,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 151645.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "after": {
+                "us": 199549.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 202955.391,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "before": {
+                "us": 150613.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 150851.391,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "after": {
+                "us": 200914.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 149278.297,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "before": {
+                "us": 160327.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 150855.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "after": {
+                "us": 153034.391,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 149696.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "before": {
+                "us": 152849.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 150278.891,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "after": {
+                "us": 149725.906,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 151992.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              },
+              "before": {
+                "us": 150418.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 84868284
+              }
+            }
+          ],
+          "before_us": 150851.391,
+          "after_us": 151992.5,
+          "change_percent": 0.7564457924023937,
+          "paired_change_percent": 1.0466133543690859,
+          "allocations": {
+            "before": {
+              "us": 115434.602,
+              "calls": 5000,
+              "bytes": 262235000,
+              "checksum": 65586000
+            },
+            "after": {
+              "us": 117953.203,
+              "calls": 2000,
+              "bytes": 262180000,
+              "checksum": 65586000
+            }
+          }
+        },
+        {
+          "name": "mixed64k",
+          "count": 990,
+          "samples": [
+            {
+              "warmup": true,
+              "before": {
+                "us": 151875.203,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "after": {
+                "us": 174221.594,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 173311.391,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "before": {
+                "us": 175716.391,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 159323.703,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "after": {
+                "us": 173883.688,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 147828.906,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "before": {
+                "us": 181698.406,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 176747.609,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "after": {
+                "us": 183015.797,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 173717.094,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "before": {
+                "us": 156052.313,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "before": {
+                "us": 150444.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "after": {
+                "us": 178109.094,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            },
+            {
+              "warmup": false,
+              "after": {
+                "us": 147423.0,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              },
+              "before": {
+                "us": 173998.5,
+                "calls": 0,
+                "bytes": 0,
+                "checksum": 99506880
+              }
+            }
+          ],
+          "before_us": 173998.5,
+          "after_us": 173717.094,
+          "change_percent": -0.1617289804222377,
+          "paired_change_percent": 3.546406107253186,
+          "allocations": {
+            "before": {
+              "us": 157560.5,
+              "calls": 5000,
+              "bytes": 174811000,
+              "checksum": 100512000
+            },
+            "after": {
+              "us": 177734.297,
+              "calls": 2000,
+              "bytes": 174756000,
+              "checksum": 100512000
+            }
+          }
+        }
+      ]
+    }
+  }
+}

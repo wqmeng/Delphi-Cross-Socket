@@ -1332,8 +1332,23 @@ type
     /// </remarks>
     class function IsValidHeaderValue(const AValue: string): Boolean; static;
 
-    // 编码完整发送头之前检查 UTF-16，禁止编码器静默替换孤立代理项。
+    /// <summary>检查 UTF-16 码元配对，避免发送编码器静默替换坏代理项。</summary>
+    /// <param name="AText">待检查的 Unicode 文本，可用于编码前的 URL/query 分量或完整头文本。</param>
+    /// <remarks>
+    ///   孤立高/低代理项或错误配对抛 EConvertError，不修改输入。合法代理项对及
+    ///   U+FFFD 均允许；此方法不检查 HTTP 字段语法，也不替代 CR/LF 等字符的校验。
+    /// </remarks>
     class procedure CheckUtf16(const AText: string); static;
+
+    /// <summary>验证完整头文本的 UTF-16，并生成不附加 BOM 的 UTF-8 字节。</summary>
+    /// <param name="AHeaderText">已构造的完整首行、独立 Cookie 和字段文本；同步借用。</param>
+    /// <returns>自有字节数组；全 ASCII 使用等价 UTF-8 快路，非 ASCII 仍用标准 UTF-8 编码器。</returns>
+    /// <remarks>
+    ///   本方法每次都完整校验代理配对，不接受“已验证”标志；坏代理抛 EConvertError。
+    ///   HTTP 名称、控制字符和首行语法仍由构造方检查；此方法不代替字段语法校验。
+    ///   返回后才可提交发送，因此校验或分配异常不能产生半份 Header。
+    /// </remarks>
+    class function EncodeHeader(const AHeaderText: string): TBytes; static;
 
     /// <summary>
     ///   校验 HTTP header field-name 是否符合 RFC 7230 token 字符集.
@@ -2069,24 +2084,76 @@ begin
   Result := True;
 end;
 
-class procedure TCrossHttpUtils.CheckUtf16(const AText: string);
+type
+  // packed 允许从未对齐的 UTF-16 地址读取；每块仅含两个码元，不依赖容器布局。
+  THeaderCharPair = packed record
+    Value: Cardinal;
+  end;
+  PHeaderCharPair = ^THeaderCharPair;
+
+// AText 按完整显式长度检查；返回值仅表示是否全 ASCII，不是跳过校验的输入标志。
+// 任意坏代理都抛 EConvertError。块快路仅读取尚存的两个码元，尾部和非 ASCII 走标量。
+function _CheckUtf16(const AText: string): Boolean;
 var
-  I, C: Integer;
+  P, LEnd: PChar;
+  LRemaining, C: Integer;
 begin
-  I := 1;
-  while I <= Length(AText) do
+  P := PChar(AText);
+  LRemaining := Length(AText);
+  LEnd := P + LRemaining;
+  while LRemaining >= 2 do
   begin
-    C := Ord(AText[I]);
-    if (C >= $D800) and (C <= $DBFF) then
-    begin
-      Inc(I);
-      if (I > Length(AText)) or (Ord(AText[I]) < $DC00)
-        or (Ord(AText[I]) > $DFFF) then
-        raise EConvertError.Create('Invalid UTF-16 in HTTP header');
-    end
-    else if (C >= $DC00) and (C <= $DFFF) then
+    // 两个 16 位槽的高九位都为零才是 ASCII；先检查余量，不读取右边界以外的块。
+    if (PHeaderCharPair(P)^.Value and $FF80FF80) <> 0 then Break;
+    Inc(P, 2);
+    Dec(LRemaining, 2);
+  end;
+  if LRemaining = 0 then Exit(True);
+  if LRemaining = 1 then
+    if Ord(P^) <= 127 then Exit(True);
+
+  // 已遇到非 ASCII。先前跳过的码元全部合法，只需检查剩余区间的代理配对。
+  Result := False;
+  while P < LEnd do
+  begin
+    C := Ord(P^);
+    Inc(P);
+    if (C and $F800) <> $D800 then Continue;
+    // 先检查下一码元存在，再读取；完整布尔求值也不会使尾部高代理越界。
+    if (C > $DBFF) or (P = LEnd) then
       raise EConvertError.Create('Invalid UTF-16 in HTTP header');
-    Inc(I);
+    if (Ord(P^) and $FC00) <> $DC00 then
+      raise EConvertError.Create('Invalid UTF-16 in HTTP header');
+    Inc(P);
+  end;
+end;
+
+class procedure TCrossHttpUtils.CheckUtf16(const AText: string);
+begin
+  // 公开过程保留原语义，只使用完整性检查，不向调用方暴露 ASCII 识别结果。
+  _CheckUtf16(AText);
+end;
+
+class function TCrossHttpUtils.EncodeHeader(const AHeaderText: string): TBytes;
+var
+  P: PChar;
+  LDest: PByte;
+  I, LLength: Integer;
+begin
+  // ASCII 标记来自完整输入的同一次验证，不能仅根据字段块或首行选择快路。
+  if not _CheckUtf16(AHeaderText) then
+    Exit(TEncoding.UTF8.GetBytes(AHeaderText));
+
+  LLength := Length(AHeaderText);
+  SetLength(Result, LLength);
+  P := PChar(AHeaderText);
+  LDest := Pointer(Result);
+  // 所有码元已证明在 0..127，逐字节写出与无 BOM UTF-8 完全一致；空串不解引用。
+  for I := 1 to LLength do
+  begin
+    LDest^ := Byte(Ord(P^));
+    Inc(LDest);
+    Inc(P);
   end;
 end;
 

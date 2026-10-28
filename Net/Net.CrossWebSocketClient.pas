@@ -1335,7 +1335,8 @@ begin
           if (Length(LSelected) = 1) and (LSelected[0] <> '') then
           begin
             for LOffer in LProtocols do
-              // 只把合法的实际提议与响应 token 比较；非法发送值由 Encode 拒绝。
+              // LProtocols 是请求初始化后的提议快照；此处比对它，不读取后来可能变化的 Header。
+              // Encode 会拒绝非法发送值；下方校验只让合法提议参与子协议匹配。
               if TCrossHttpUtils.IsValidHeaderValue(LOffer) then
                 for LToken in LOffer.Split([',']) do
                   if LToken.Trim = LSelected[0] then LProtocolFound := True;

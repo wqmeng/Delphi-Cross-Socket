@@ -24,6 +24,7 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+# request.hex 是报告中的固定线上字节；先校验哈希和头/体尺寸，禁止经文本读写重编码。
 def fixture():
     data = bytes.fromhex((HERE / 'request.hex').read_text(encoding='ascii'))
     metadata = json.loads((HERE / 'fixture.json').read_text(encoding='utf-8'))
@@ -34,6 +35,8 @@ def fixture():
     return data
 
 
+# 每个目标使用独立 units 目录并全量构建，记录源码/二进制哈希；调用方的 label 隔离历史证据。
+# Release 参数参考用户脚本，Delphi 的 D+/L+/Y+ 仍保留调试资料，不等于“关闭全部调试信息”。
 def build(target, output):
     output.mkdir(parents=True, exist_ok=True)
     units = output / 'units'
@@ -102,6 +105,8 @@ def request_fields(body):
             for name, value in zip(names, match.groups())}
 
 
+# payload 为原始 bytes，split=True 只在头/体边界分两次发送；不保证操作系统的 recv 分块形状。
+# directory 保存本次收发和服务端诊断；同连接 FOLLOWUP 用来发现前次正文未消费造成的串包。
 def replay(executable, directory, payload, split):
     directory.mkdir()
     (directory / 'sent.bin').write_bytes(payload)
@@ -194,6 +199,8 @@ def replay(executable, directory, payload, split):
         result['header_matches_original'] = header_path.exists() and header_path.read_bytes() == payload.split(b'\r\n\r\n', 1)[0] + b'\r\n\r\n'
         result['body_matches_original'] = body_path.exists() and body_path.read_bytes() == payload.split(b'\r\n\r\n', 1)[1]
         result['requests'] = next((int(line.split()[1]) for line in lines if line.startswith('TOTAL ')), None)
+        # observation_ok 表示观测过程完整，也允许成功复现旧缺陷；
+        # behavior_ok 才要求头、正文、后续 Method 全部正确，严格模式用它决定退出码。
         result['observation_ok'] = ('error' not in result and process.returncode == 0
                                     and result['received_original_prefix_matches'] and bool(received)
                                     and result.get('status') in (200, 400) and result.get('closed', False))

@@ -18,6 +18,7 @@ FPC = Path(r'D:\Design\FreePascal\fpc\bin\x86_64-win64\ppcx64.exe')
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
+# 仅解释测试进程的控制台输出，不参与线上 HTTP 字节的编码或解码。
 def decode(data):
     try:
         return data.decode('utf-8')
@@ -25,6 +26,8 @@ def decode(data):
         return data.decode('gb18030', errors='replace')
 
 
+# target 指编译目标；output 必须是新的独立目录，checked 覆盖断言/I/O/范围/溢出开关。
+# Linux 在 Windows 工具链交叉编译，构建成功不等于运行通过，需到目标系统用 --executable 执行。
 def build(target, output, checked):
     output.mkdir(parents=True, exist_ok=False)
     units = output / 'units'
@@ -69,6 +72,8 @@ def build(target, output, checked):
     return exe
 
 
+# exe 是实际 HTTP 客户端，case 选择线上响应或非法发送场景；Python 端不使用 HTTP 库，
+# 直接保留 BOM 等原始字节，避免库替测试程序规范化报文。
 def client(exe, case):
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
@@ -89,6 +94,7 @@ def client(exe, case):
                     if not data:
                         break
                     received.extend(data)
+                # 发送失败必须发生在任何请求字节上网之前；只有异常回调而已写出部分头也算失败。
                 if case.startswith('invalid-'):
                     assert not received, f'非法发送泄漏字节: {received!r}'
                 else:
@@ -109,7 +115,8 @@ def client(exe, case):
                         response = b'HTTP/1.1 200 OK\r\nContent-Length: \xef\xbb\xbf3\r\n\r\nabc'
                     if case == 'transfer-bom':
                         response = b'HTTP/1.1 200 OK\r\nTransfer-Encoding: \xef\xbb\xbfchunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n'
-                    # 原始响应逐字节发送，覆盖 Parser 增量边界。
+                    # 按单字节调用 sendall，不依赖 HTTP 库重编码；TCP 可合并读取，
+                    # 确定的逐字节 Parser 边界由组件测试另行覆盖。
                     for value in response:
                         try:
                             conn.sendall(bytes([value]))
@@ -124,6 +131,8 @@ def client(exe, case):
                 p.communicate()
 
 
+# exe 启动真实 HTTP Server；output 是本轮隔离目录，上传文件只在其 tcp-uploads 子目录产生。
+# 响应状态、业务回调计数和最终文件清理一起判断，不能用“收到 400”替代完整失败链检查。
 def server(exe, output):
     storage = output / 'tcp-uploads'
     storage.mkdir(exist_ok=False)
@@ -182,6 +191,7 @@ def server(exe, output):
                     conn.sendall(body[len(first_part):])
                 else:
                     conn.sendall(prefix + body)
+                # 等待对端 EOF/reset，而非主动关连接后再判“已关闭”；超时意味着收尾未完成。
                 response = bytearray()
                 while True:
                     try:
@@ -209,6 +219,7 @@ def server(exe, output):
         p.stdin.close()
         p.stdout.close()
         (output / 'server.log').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    # 共五个合法请求应进入路由；坏 CL/TE、重复坏字段和坏 multipart 不能被当成成功业务。
     assert p.returncode == 0 and 'REQUESTS 5' in lines, lines
     assert not list(storage.iterdir()), '关闭后上传临时文件未清理'
     return results
@@ -226,6 +237,7 @@ def main():
     if not options.label.replace('-', '').replace('_', '').isalnum():
         parser.error('invalid label')
     for target in (['native'] if options.executable else options.targets):
+        # 此分支运行已有目标平台产物，保留其 build.json；不把宿主平台构建冒充目标运行。
         if options.executable:
             exe = options.executable.resolve(strict=True)
             output = exe.parent

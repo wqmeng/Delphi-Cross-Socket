@@ -488,3 +488,21 @@ Windows 三目标相邻回归：HTTP 失败/队列/存储各 143/143；HEAD 各 
 WebSocket 握手五目标各 55/55；综合组件、11,056 帧拆分组合、发送生命周期和每目标 11 个真实回环均通过，旧 nil Owner 崩溃解决；Windows 发送队列专项各 23/23。相邻 Windows 三目标 HTTP 失败/队列/存储各 143/143，HEAD/临时响应/响应解析复用各 14/9/22，热路径各 13543/4008/19，#199 共 12/12。HttpServer、WebSocketServer、HttpClient 原 dproj 的 MSBuild Release/Win64 全量单元构建成功。
 
 详见 `Net/Tests/FPC/HttpHeaderTests/README.md` 和新建的 `REPAIR_RESULTS.json`，其中保留红例、当前源码哈希、实际测试路径和未验证平台。数据结构和 GetString 未改，AutoDeleteFiles 的配置语义未改；当前任务未提交/推送。
+
+
+## 16. 2026-10-28 #199 注释补齐
+
+状态：已完成。用户要求检查 #199 新改代码并补齐关键参数与关键逻辑说明。本轮以提交 5e63745 为范围，只改注释和本计划，不改签名、标识符、控制流、常量或编译指令；提交另按用户授权处理。
+
+- [x] N01：核对该提交的全部生产代码和测试代码；公开记录、构造器、Header 两种 Decode 的指针类型/长度单位、输入所有权、来源标记、错误与回滚合同写明。
+- [x] N02：重点解释 Server.ParseHeader 的原始头快照、首行分隔、展示字符串与解析数据的区别、请求目标/query 分段和一次百分号解码、Header 校验失败路径；Client.ParseHeader 对应补齐。
+- [x] N03：补协议控制字段原始字节校验、引号/转义例外、UTF-16 输出检查、multipart 输入与失败传播、测试连接 Owner 生命周期等关键原因和边界。
+- [x] N04：检查新增测试及 runner，对原始报文/诊断转换、字节长度、跨平台预期、同步屏障等容易误读的地方补注释；纯类型改名、单行 include、数据 fixture 和历史验证 JSON 不添加无意义注释。
+- [x] N05：比较所有已改 Pascal/Python 文件去除普通注释后的词法 token，确认与 HEAD 完全相同；保留编译指令、字符串字面量和 Python 缩进 token，另做编码/换行与 diff 检查。仅注释修改不重跑已通过的功能矩阵，也不修改历史源码哈希记录。
+
+涉及文件：Net.CrossHttpParams.pas、Net.CrossHttpServer.pas、Net.CrossHttpClient.pas、Net.CrossHttpUtils.pas、Net.CrossWebSocketClient.pas，以及提交内的 HttpHeaderTests、Issue199Tests、HttpHotPathTests 和 WebSocketFrameTests 代码。按实际缺口补注释，避免重复代码表面动作。
+
+
+注释补齐结果：检查 5e63745 中全部 15 个 Pascal/Python 代码文件，为 5 个生产文件和 7 个测试文件补注释；两个单行 dpr include 及仅机械类型改名的 HttpHotPathTests.lpr 保持原样。Server.ParseHeader 按八个处理阶段解释，补齐字节/UTF-16 码元单位、借用与复制、来源标记、回滚与错误处理层次等约定；同时修正旧诊断注释中把默认代码页转换称为当前 ParseHeader 行为的过时描述。
+
+验证：全部 15 个文件去除普通注释后词法 token 与 5e63745 相同，保留并核对了编译指令、字符串字面量及 Python 缩进 token；Python AST 相同。13 组新增/修改 XML 文档注释解析通过，Pascal UTF-8 BOM/CRLF 与 git diff --check 通过。核对结果保存在 Net/Tests/FPC/HttpHeaderTests/bin/comment-audit-20261028/validation.json。仅注释变动，未重跑编译/功能矩阵，未改写历史验证 SHA-256；源码的文本哈希会因注释自然变化，但可执行逻辑不变。尚未提交。

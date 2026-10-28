@@ -3,6 +3,7 @@
 {$IFNDEF FPC}{$APPTYPE CONSOLE}{$ENDIF}
 uses
   {$IF DEFINED(FPC) AND DEFINED(POSIX)}cthreads, cwstring,{$ENDIF}
+  {$IFDEF MSWINDOWS}Windows,{$ENDIF}
   SysUtils, Classes, SyncObjs, Net.CrossHttpParams, Net.CrossHttpUtils,
   Net.CrossHttpServer, Net.CrossHttpClient, Net.CrossSocket.Base, Net.SocketAPI,
   Utils.Utils;
@@ -20,6 +21,7 @@ end;
 function Bytes(const S: string): TBytes;
 begin Result := TEncoding.UTF8.GetBytes(S); end;
 
+// 先编码成 UTF-8，再用 AnsiString 作为字节容器供内存连接 Feed；不经默认代码页重编码。
 function Wire(const S: string): AnsiString;
 var B: TBytes;
 begin B := Bytes(S); SetString(Result, PAnsiChar(Pointer(B)), Length(B)); end;
@@ -30,6 +32,8 @@ begin
   if Result and (Length(A) > 0) then Result := CompareMem(Pointer(A), Pointer(B), Length(A));
 end;
 
+// 无参数模式使用真实 Parser/路由/队列，只有底层发送替换为内存收集；
+// server/client 模式则由 Python runner 驱动真实 TCP，二者的验证边界不同。
 {$I ../HttpHotPathTests/HttpTestSupport.inc}
 
 procedure TestEntries;
@@ -51,6 +55,7 @@ begin
     F := Other.Items[0]; Check(Pointer(F.RawValue) = Pointer(E.RawValue), 'Assign 共享');
     N := 0;
     for F in H do begin if N = 0 then Check(Pointer(F.RawValue) = Pointer(E.RawValue), '枚举共享'); Inc(N); end;
+    // 故意构造 Value/raw 不一致的完整记录，验证容器信任四字段，不自动修正来源。
     E.Name := 'Z'; E.Value := '调用方文本'; H.Items[0] := E;
     Check((H.Items[0].Value = E.Value) and H.Items[0].HasRawValue, '完整记录不修正');
     H.Sort; N := 0;
@@ -81,6 +86,8 @@ const Bad: array[0..11] of string = ('bad', ': v', 'Bad Name: v', ' X: v',
   'X: a'#127, 'X: a'#13#10#13#10'Y: b', 'X: a'#13#10' folded');
 var H: THttpHeader; B, Raw: TBytes; S, ExpectedValue, ErrorClass: string;
     I, C, ConversionErrors: Integer; Failed, Expected: Boolean;
+    LOldEntry: TParamEntry;
+    LOldCount: Integer;
 begin
   H := THttpHeader.Create;
   try
@@ -105,6 +112,46 @@ begin
       Check(not H.Decode('Good: yes'#13#10 + Bad[I], False) and (H.Count = 1), '字符串追加回滚');
       Check(not H.Decode(Pointer(B), Length(B)) and (H.Count = 0), '清空模式失败');
     end;
+    // 先追加足够多的完整字段覆盖当前扩容路径，再让最后一行失败；旧项不参与回滚。
+    B := Bytes('Keep-Original: 中文旧值');
+    Check(H.Decode(Pointer(B), Length(B)), '准备扩容回滚旧项');
+    LOldEntry := H.Items[0];
+    S := '';
+    for I := 0 to 31 do
+      S := S + 'X-Field-' + IntToStr(I) + ': value' + IntToStr(I) + #13#10;
+    B := Bytes(S + 'Broken: value'#13);
+    Check(not H.Decode(Pointer(B), Length(B), False), '多字段追加后末行失败');
+    Check((H.Count = 1) and (H.Items[0].Name = LOldEntry.Name)
+      and (H.Items[0].Value = LOldEntry.Value) and H.Items[0].HasRawValue
+      and (LOldEntry.Name = 'Keep-Original') and (LOldEntry.Value = '中文旧值'), '扩容回滚保留旧名称和值');
+    Check((Pointer(H.Items[0].RawValue) = Pointer(LOldEntry.RawValue))
+      and SameBytes(H.Items[0].RawValue, Bytes('中文旧值')), '扩容回滚保留旧 raw 身份和内容');
+    // 删除字节来源项后再追加文本/空值，旧尾项的来源标志不能泄漏到新字段。
+    B := Bytes('Removed: 原始字节'#13#10'Removed-Empty:');
+    Check(H.Decode(Pointer(B), Length(B), False) and (H.Count = 3)
+      and H.Items[1].HasRawValue and H.Items[2].HasRawValue, '准备删除字节来源尾项');
+    H.Remove(2); H.Remove(1);
+    Check(H.Decode('Text: new'#13#10'Empty:', False) and (H.Count = 3), '删除后追加字符串和空值');
+    Check((H.Items[1].Name = 'Text') and (H.Items[1].Value = 'new')
+      and not H.Items[1].HasRawValue and (H.Items[1].RawValue = nil)
+      and (H.Items[2].Name = 'Empty') and (H.Items[2].Value = '')
+      and not H.Items[2].HasRawValue and (H.Items[2].RawValue = nil), '重用集合不继承已删项 raw 来源');
+    Check((H.Items[0].Name = LOldEntry.Name) and (H.Items[0].Value = LOldEntry.Value)
+      and (Pointer(H.Items[0].RawValue) = Pointer(LOldEntry.RawValue)), '删除和文本追加保留旧项');
+    // 先前的大批追加及删除后继续追加，再次失败只回滚本次内容，不改变已有三项。
+    LOldCount := H.Count;
+    B := Bytes('Later-A: more'#13#10'Later-B: '#$FEFF'字节'#13#10'Broken: value'#13);
+    Check(not H.Decode(Pointer(B), Length(B), False), '集合重用后追加失败');
+    Check((H.Count = LOldCount) and (H.Items[0].Name = LOldEntry.Name)
+      and (H.Items[0].Value = LOldEntry.Value) and H.Items[0].HasRawValue
+      and (Pointer(H.Items[0].RawValue) = Pointer(LOldEntry.RawValue))
+      and SameBytes(H.Items[0].RawValue, Bytes('中文旧值'))
+      and (H.Items[1].Name = 'Text') and (H.Items[1].Value = 'new')
+      and not H.Items[1].HasRawValue and (H.Items[1].RawValue = nil)
+      and (H.Items[2].Name = 'Empty') and (H.Items[2].Value = '')
+      and not H.Items[2].HasRawValue and (H.Items[2].RawValue = nil), '重用后回滚保留计数、raw 身份和文本项');
+    // 语法是否合法按字节判断；文本或异常预期则以同一 raw 调用 GetString 的结果为准，
+    // 不把平台默认编码差异误当成新解析器应该统一替换/拒绝字节的规则。
     ConversionErrors := 0;
     for C := 0 to 255 do
     begin
@@ -151,7 +198,7 @@ end;
 procedure TestEncode;
 const Bad: array[0..8] of string = (#13, #10, #0, #127, #$D800, #$DC00,
   #$D800#$D800, #$DC00#$D800, #$D800'a');
-var H: THttpHeader; I: Integer; Failed: Boolean; S: string; B: TBytes;
+var H: THttpHeader; I: Integer; Failed: Boolean; S, LErrorMessage: string; B: TBytes;
 begin
   H := THttpHeader.Create;
   try
@@ -167,9 +214,79 @@ begin
     H.Clear; H.Add('bad name', 'v'); Failed := False;
     try S := H.Encode; except on EConvertError do Failed := True; end;
     Check(Failed and (H.Count = 1), '非法名称抛出');
+    // 字段合法性先于整块 UTF-16 检查：早遇到坏代理也不能遮蔽后续的字段/CTL 错误。
+    for I := 0 to 2 do
+    begin
+      H.Clear; H.Add('X', #$D800);
+      case I of
+        0: H.Add('bad name', 'v');
+        1: H['X'] := #$D800#0;
+      end;
+      Failed := False; LErrorMessage := '';
+      try S := H.Encode;
+      except on E: EConvertError do begin Failed := True; LErrorMessage := E.Message; end; end;
+      if I = 2 then
+        Check(Failed and (LErrorMessage = 'Invalid UTF-16 in HTTP header'), '仅坏代理保留 UTF-16 错误')
+      else Check(Failed and (LErrorMessage = 'Invalid HTTP header field'), '多错保留字段错误优先级 ' + IntToStr(I));
+    end;
   finally H.Free; end;
 end;
 
+// EncodeHeader/CheckUtf16 只负责 UTF-16 完整性与无 BOM UTF-8，NUL 等字段限制由调用方另验。
+procedure TestHeaderEncoding;
+const
+  ValidTails: array[0..7] of string = ('', 'A', #0#9#13#10#127, #$0080,
+    '中文', #$FEFF, #$FFFD, #$D83D#$DE00);
+  InvalidTails: array[0..6] of string = (#$D800, #$DC00, #$D800#$D800,
+    #$DC00#$D800, #$D800'a', #$D800#0, #$D800#$D800#$DC00);
+var
+  LPrefixLength, I, LSuffix: Integer;
+  S, LError: string;
+  B, LOther, LExpected: TBytes;
+  LFailed: Boolean;
+begin
+  // 前缀奇偶及长度让非 ASCII/代理对落在不同双码元位置，尾部同时覆盖奇偶长度。
+  for LPrefixLength := 0 to 7 do
+    for I := Low(ValidTails) to High(ValidTails) do
+      for LSuffix := 0 to 1 do
+      begin
+        S := StringOfChar('a', LPrefixLength) + ValidTails[I];
+        if LSuffix <> 0 then S := S + 'z';
+        LExpected := TEncoding.UTF8.GetBytes(S);
+        TCrossHttpUtils.CheckUtf16(S);
+        B := TCrossHttpUtils.EncodeHeader(S);
+        Check(SameBytes(B, LExpected) and SameBytes(TEncoding.UTF8.GetBytes(S), LExpected),
+          '整头 UTF8 与标准编码一致且输入不变 ' + IntToStr(LPrefixLength) + '/' + IntToStr(I) + '/' + IntToStr(LSuffix));
+      end;
+  for LPrefixLength := 0 to 7 do
+    for I := Low(InvalidTails) to High(InvalidTails) do
+    begin
+      S := StringOfChar('a', LPrefixLength) + InvalidTails[I];
+      LFailed := False; LError := '';
+      try TCrossHttpUtils.CheckUtf16(S);
+      except on E: EConvertError do begin LFailed := True; LError := E.Message; end; end;
+      Check(LFailed and (LError = 'Invalid UTF-16 in HTTP header'),
+        '公开 UTF16 检查拒绝坏代理 ' + IntToStr(LPrefixLength) + '/' + IntToStr(I));
+      LFailed := False; LError := '';
+      try B := TCrossHttpUtils.EncodeHeader(S);
+      except on E: EConvertError do begin LFailed := True; LError := E.Message; end; end;
+      Check(LFailed and (LError = 'Invalid UTF-16 in HTTP header'),
+        '整头编码拒绝坏代理 ' + IntToStr(LPrefixLength) + '/' + IntToStr(I));
+    end;
+  // 两次结果不能共享可写存储；ASCII 与非 ASCII 两条结果路径都验证。
+  for I := 0 to 1 do
+  begin
+    if I = 0 then S := 'ABC'#0 else S := '中文'#$D83D#$DE00;
+    LExpected := TEncoding.UTF8.GetBytes(S);
+    B := TCrossHttpUtils.EncodeHeader(S); LOther := TCrossHttpUtils.EncodeHeader(S);
+    Check((Length(B) > 0) and (Pointer(B) <> Pointer(LOther)), '整头编码结果独立分配');
+    B[0] := B[0] xor $FF;
+    Check(SameBytes(LOther, LExpected) and SameBytes(TEncoding.UTF8.GetBytes(S), LExpected),
+      '修改结果不影响另一结果及输入');
+  end;
+end;
+
+// 完整请求快照必须独立复制；这一合同与 TParamEntry.RawValue 的数组共享语义不同。
 procedure TestRequest;
 const OldIID: TGUID = '{B26B7E7B-6B24-4D86-AB58-EBC20722CFDD}';
 var F: TFixture; B, Snapshot, Copy1: TBytes; Intf: IInterface; Req: ICrossHttpRequest;
@@ -279,10 +396,12 @@ const
     'Content-Encoding', 'Accept-Encoding', 'Connection', 'Upgrade', 'Expect',
     'Sec-WebSocket-Key', 'Sec-WebSocket-Version', 'Sec-WebSocket-Accept',
     'Sec-WebSocket-Protocol', 'Sec-WebSocket-Extensions');
-var H: THttpHeader; B, Raw: TBytes; Name, Prefix: string;
+var H: THttpHeader; B, Raw: TBytes; Name, Prefix, LCaseName, LAlias: string;
+    I, LCaseIndex, LAliasKind: Integer; C: Char;
 begin
   H := THttpHeader.Create;
   try
+    // 这里仅测控制字节筛查和 OWS，所以统一用 abc；CL 的数字等语义由完整 Parser 用例验证。
     for Name in Names do
     begin
       B := Bytes(Name + ': '#9'abc '#9#13#10);
@@ -295,6 +414,50 @@ begin
       B := Bytes(Name + ': '); SetLength(B, Length(B) + 1); B[High(B)] := $80;
       Check(not H.Decode(Pointer(B), Length(B)) and (H.Count = 0), '控制字段拒绝高位原始字节');
     end;
+    // 名称分类必须比较完整 ASCII 名称；大小写、长度和相似前后缀均不能改变 raw 规则。
+    for Name in Names do
+      for LCaseIndex := 0 to 2 do
+      begin
+        LCaseName := Name;
+        for I := 1 to Length(LCaseName) do
+        begin
+          C := LCaseName[I];
+          if (C >= 'A') and (C <= 'Z') then C := Char(Ord(C) + 32);
+          if (LCaseIndex = 1) or ((LCaseIndex = 2) and not Odd(I)) then
+            if (C >= 'a') and (C <= 'z') then C := Char(Ord(C) - 32);
+          LCaseName[I] := C;
+        end;
+        B := Bytes(LCaseName + ': abc');
+        Check(H.Decode(Pointer(B), Length(B)) and (H.Items[0].Name = LCaseName),
+          '控制字段保留输入大小写: ' + LCaseName);
+        Raw := H.Items[0].RawValue;
+        B := Bytes('Good: yes'#13#10 + LCaseName + ': '#$FEFF'abc');
+        Check(not H.Decode(Pointer(B), Length(B), False), '大小写控制字段拒绝 BOM: ' + LCaseName);
+        Check((H.Count = 1) and (Pointer(H.Items[0].RawValue) = Pointer(Raw))
+          and SameBytes(Raw, Bytes('abc')), '分类失败回滚保留旧 raw');
+        B := Bytes(LCaseName + ': '); SetLength(B, Length(B) + 1); B[High(B)] := $80;
+        Check(not H.Decode(Pointer(B), Length(B)), '大小写控制字段拒绝高字节: ' + LCaseName);
+        for LAliasKind := 0 to 2 do
+        begin
+          case LAliasKind of
+            0: LAlias := 'X-' + LCaseName;
+            1: LAlias := LCaseName + '-X';
+          else LAlias := Copy(LCaseName, 1, Length(LCaseName) - 1) + 'X';
+          end;
+          B := Bytes(LAlias + ': '#$FEFF'中文');
+          Check(H.Decode(Pointer(B), Length(B)) and (H[LAlias] = '中文'),
+            '相似名称仍为普通字段: ' + LAlias);
+          Check(SameBytes(H.Items[0].RawValue, Bytes(#$FEFF'中文')), '相似名称保留 BOM raw');
+        end;
+        if (Name = 'Expect') or (Name = 'Transfer-Encoding') then
+        begin
+          if Name = 'Expect' then Prefix := 'x=' else Prefix := 'custom; p=';
+          B := Bytes(LCaseName + ': ' + Prefix + '"a\"中文"');
+          Check(H.Decode(Pointer(B), Length(B)), '大小写控制字段保留 quoted obs-text');
+          B := Bytes(LCaseName + ': ' + Prefix + '"abc\');
+          Check(not H.Decode(Pointer(B), Length(B)), 'quoted-string 悬空转义拒绝');
+        end;
+      end;
     for Name in ['Expect', 'Transfer-Encoding'] do
     begin
       if Name = 'Expect' then Prefix := 'x=' else Prefix := 'custom; p=';
@@ -314,6 +477,85 @@ begin
   finally H.Free; end;
 end;
 
+// 从非零、非对齐位置提供显式字节范围；区间外哨兵与输入都只能借用，不能被解析器改写。
+procedure TestDecodeBounds;
+const
+  Offsets: array[0..3] of Integer = (1, 3, 7, 15);
+  Inputs: array[0..4] of string = ('X:', 'X:a', 'X: aa', 'X: 中文', 'X: 中文'#13#10#13#10);
+  Values: array[0..4] of string = ('', 'a', 'aa', '中文', '中文');
+  Tails: array[0..2] of string = (#$D83D#$DE00, #$D800, #$DC00);
+var
+  H: THttpHeader;
+  LPayload, LBuffer, LBefore: TBytes;
+  LOffset, I: Integer;
+  S, LValue: string;
+begin
+  H := THttpHeader.Create;
+  try
+    for LOffset in Offsets do
+      for I := Low(Inputs) to High(Inputs) do
+      begin
+        LPayload := Bytes(Inputs[I]);
+        SetLength(LBuffer, LOffset + Length(LPayload) + 5);
+        FillChar(LBuffer[0], Length(LBuffer), $7F);
+        Move(LPayload[0], LBuffer[LOffset], Length(LPayload));
+        LBefore := Copy(LBuffer);
+        Check(H.Decode(@LBuffer[LOffset], Length(LPayload)) and (H.Count = 1), '非零偏移按显式长度解码');
+        Check((H['X'] = Values[I]) and H.Items[0].HasRawValue
+          and SameBytes(H.Items[0].RawValue, Bytes(Values[I])), '偏移区间值和 raw');
+        Check(SameBytes(LBuffer, LBefore), '解码不改借用区间及哨兵');
+        FillChar(LBuffer[LOffset], Length(LPayload), 0);
+        Check((H['X'] = Values[I]) and SameBytes(H.Items[0].RawValue, Bytes(Values[I])),
+          '输入复用不影响自有解码结果');
+      end;
+    for I := Low(Tails) to High(Tails) do
+    begin
+      LValue := '中文' + Tails[I]; S := 'X: ' + LValue;
+      // 字符串 Decode 复制码元，不在入站文本入口增加出站 UTF-16 合法性检查。
+      Check(H.Decode(S) and (H['X'] = LValue) and not H.Items[0].HasRawValue,
+        '字符串入口保留末尾代理码元');
+      S[Length(S)] := 'z';
+      Check(H['X'] = LValue, '字符串输入修改不污染字段');
+    end;
+  finally H.Free; end;
+end;
+
+{$IFDEF MSWINDOWS}
+// 哨兵只验证语义；不可读保护页同时验证扫描器不会在范围末尾实际读取下一个字节。
+procedure TestDecodeGuard;
+var
+  H: THttpHeader;
+  LInfo: TSystemInfo;
+  LBase, P: PByte;
+  LOldProtect: DWORD;
+  B: TBytes;
+  N: Integer;
+begin
+  GetSystemInfo(LInfo);
+  LBase := VirtualAlloc(nil, LInfo.dwPageSize * 2, MEM_RESERVE or MEM_COMMIT, PAGE_READWRITE);
+  if LBase = nil then RaiseLastOSError;
+  try
+    if not VirtualProtect(LBase + LInfo.dwPageSize, LInfo.dwPageSize, PAGE_NOACCESS, LOldProtect) then
+      RaiseLastOSError;
+    H := THttpHeader.Create;
+    try
+      Check(H.Decode(LBase + LInfo.dwPageSize, 0), '零长度保护页不解引用');
+      for N := 0 to 17 do
+      begin
+        B := Bytes('X:' + StringOfChar('a', N));
+        P := LBase + LInfo.dwPageSize - Length(B);
+        Move(B[0], P^, Length(B));
+        Check(H.Decode(P, Length(B)) and (H['X'] = StringOfChar('a', N)), '保护页前完整字段');
+        B := Bytes('X:' + StringOfChar('a', N) + #13);
+        P := LBase + LInfo.dwPageSize - Length(B);
+        Move(B[0], P^, Length(B));
+        Check(not H.Decode(P, Length(B)) and (H.Count = 0), '保护页前裸 CR 拒绝而不读越界');
+      end;
+    finally H.Free; end;
+  finally VirtualFree(LBase, 0, MEM_RELEASE); end;
+end;
+{$ENDIF}
+
 function FileCount(const APath: string): Integer;
 var Search: TSearchRec;
 begin
@@ -326,6 +568,8 @@ begin
   finally FindClose(Search); end;
 end;
 
+// ACase: 0 合法；1 首个 part 坏头；2 后续 part 坏头；3 先收齐文件 part 再分段送来坏头。
+// 必须经完整 HTTP Parser/路由验证，单独检查 multipart.Decode=frFailed 不足以证明失败传播。
 procedure TestMultipartRequest(const ACase: Integer);
 var F: TFixture; Calls: Integer; ValidForm: Boolean; Body, Prefix, Tail, Dir: string;
 begin
@@ -334,6 +578,7 @@ begin
   Calls := 0; ValidForm := False; F := TFixture.Create;
   try
     F.Server.StoragePath := Dir;
+    // 清理断言显式开启自动删除，不改变生产默认配置对上传文件保留的约定。
     F.Server.AutoDeleteFiles := True;
     F.Server.Post('/upload', TCrossHttpRouterProc(procedure(const R: ICrossHttpRequest;
       const S: ICrossHttpResponse; var Handled: Boolean)
@@ -350,6 +595,7 @@ begin
     Tail := 'Content-Disposition: form-data; name="text"'#13#10;
     if ACase >= 2 then Tail := Tail + 'Bad Name: x'#13#10;
     Tail := Tail + #13#10'two'#13#10'--b--'#13#10;
+    // filename 含中文，Content-Length 必须计算实际 UTF-8 字节数，不能直接用字符串 Length。
     Prefix := 'POST /upload HTTP/1.1'#13#10'Host: localhost'#13#10
       + 'Content-Type: multipart/form-data; boundary=b'#13#10
       + 'Content-Length: ' + IntToStr(Length(Bytes(Body + Tail))) + #13#10#13#10;
@@ -371,6 +617,7 @@ begin
   Check(RemoveDir(Dir), '清理隔离上传目录');
 end;
 
+// ParamStr(2) 是 runner 创建的独立上传目录；READY/REQUESTS 供父进程同步和核对业务调用数。
 procedure Server;
 var S: ICrossHttpServer; Ready: TEvent; Port: Word; Calls: Integer; Line: string;
 begin
@@ -412,6 +659,8 @@ procedure Client;
 var C: ICrossHttpClient; Done: TEvent; H: THttpHeader; Calls: Integer; ErrorText, Kind, Method, TextValue: string; AcceptOpaque: Boolean;
 begin
   Kind := ParamStr(3); Calls := 0; ErrorText := ''; AcceptOpaque := True;
+  // 保留 GetString 的平台行为：同一非 UTF-8 字节可能可转换，也可能抛异常。
+  // 此预期只用于普通字段；协议控制字段另由 BOM 拒绝用例验证。
   try TextValue := TUtils.GetString(TBytes.Create($FE));
   except on E: Exception do AcceptOpaque := False; end;
   Done := TEvent.Create(nil, True, False, ''); H := THttpHeader.Create;
@@ -426,6 +675,7 @@ begin
     C.DoRequest(Method, ParamStr(2), H, Pointer(nil), 0, nil,
       procedure(const R: ICrossHttpClientRequest)
       begin
+        // 回调可修改 Query 而不更新原 URL 文本，用它验证发送端没有漏掉动态参数校验。
         if Kind = 'invalid-query' then R.Query['q'] := #$D800;
         if Kind = 'invalid-query-name' then R.Query[#$DC00] := 'q';
       end,
@@ -459,6 +709,9 @@ begin
   finally C := nil; H.Free; Done.Free; end;
 end;
 
+{$I HeaderScanWordCases.inc}
+{$I StartLineCaseCases.inc}
+
 var I: Integer;
 begin
   try
@@ -466,8 +719,13 @@ begin
     else if ParamStr(1) = 'client' then Client
     else begin
       Writeln('entries'); TestEntries; Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
+      Writeln('header-encoding'); TestHeaderEncoding;
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
       Writeln('control-headers'); TestControlHeaders;
+      Writeln('decode-bounds'); TestDecodeBounds;
+      Writeln('header-scan-word'); Inc(Checks, RunHeaderScanWordTests);
+      Writeln('startline-case'); Inc(Checks, RunStartLineCaseTests);
+      {$IFDEF MSWINDOWS}Writeln('decode-guard'); TestDecodeGuard;{$ENDIF}
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');
       for I := 0 to 4 do TestServerOutput(I);

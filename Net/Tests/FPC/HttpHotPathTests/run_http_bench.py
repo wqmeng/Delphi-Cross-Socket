@@ -39,28 +39,35 @@ def command(args, cwd, timeout=90):
     return p.stdout
 
 
-def build(root, role, before, fastmm):
+# source_root 可指定完整冻结依赖；fastmm=None 使用示例原有的 RTL 内存管理器。
+def build(root, role, before, fastmm, source_root=None):
     folder = root / role
     folder.mkdir()
     source = folder / 'source'
     source.mkdir()
     metadata = {}
     for name in UNITS:
-        data = command(['git', 'show', before + ':Net/' + name], REPO) if role == 'before' else (REPO / 'Net' / name).read_bytes()
+        data = ((source_root / 'Net' / name).read_bytes() if source_root else
+                (command(['git', 'show', before + ':Net/' + name], REPO) if role == 'before' else (REPO / 'Net' / name).read_bytes()))
         (source / name).write_bytes(data)
         metadata[name] = hashlib.sha256(data).hexdigest()
     demo = REPO / 'Net/Demos/Delphi/HttpServer'
     data = (demo / 'HttpServer.dpr').read_bytes()
     assert b'TCrossHttpServer.Create(0, True)' in data
     data = data.replace(b'TCrossHttpServer.Create(0, True)', b'TCrossHttpServer.Create(0, False)')
-    data = data.replace(b'__HttpServer.Port := 8080;', b'__HttpServer.Port := 18080;')
-    data = data.replace(b'uses', b'uses\r\n  FastMM5,', 1)
+    data = data.replace(b'__HttpServer.Port := 8080;', b"__HttpServer.Addr := '127.0.0.1';\r\n  __HttpServer.Port := 18080;")
+    if fastmm is not None:
+        data = data.replace(b'uses', b'uses\r\n  FastMM5,', 1)
     (folder / 'HttpServer.dpr').write_bytes(data)
     shutil.copy2(demo / 'HttpServer.res', folder / 'HttpServer.res')
     tree = ET.parse(demo / 'HttpServer.dproj')
     ET.register_namespace('', 'http://schemas.microsoft.com/developer/msbuild/2003')
     ns = '{http://schemas.microsoft.com/developer/msbuild/2003}'
-    search = ';'.join(map(str, [source, REPO / 'Net', REPO / 'Utils', REPO / 'DelphiToFPC', fastmm.parent]))
+    common = source_root or REPO
+    search_paths = [source, common / 'Net', common / 'Utils', common / 'DelphiToFPC']
+    if fastmm is not None:
+        search_paths.append(fastmm.parent)
+    search = ';'.join(map(str, search_paths))
     for item in tree.iter(ns + 'DCC_UnitSearchPath'):
         item.text = search + ';$(DCC_UnitSearchPath)'
     tree.write(folder / 'HttpServer.dproj', encoding='utf-8', xml_declaration=True)
@@ -70,20 +77,21 @@ def build(root, role, before, fastmm):
     script = ('@echo off\ncall "' + str(DELPHI / 'bin/rsvars.bat') + '"\n'
               'if errorlevel 1 exit /b %errorlevel%\n'
               'msbuild HttpServer.dproj /t:Rebuild /p:Config=Release /p:Platform=Win64 '
-              '/p:DCC_ExeOutput=out /p:DCC_DcuOutput=units /p:DCC_IncludePath="' + str(REPO) + '" /v:minimal /nologo\n')
+              '/p:DCC_ExeOutput=out /p:DCC_DcuOutput=units /p:DCC_IncludePath="' + str(common) + '" /v:minimal /nologo\n')
     (folder / 'build.cmd').write_text(script, encoding='utf-8', newline='\r\n')
     output = command(['cmd.exe', '/d', '/c', 'build.cmd'], folder, 120)
     (folder / 'build.log').write_bytes(output)
     exe = folder / 'out/HttpServer.exe'
     metadata['binary_sha256'] = hashlib.sha256(exe.read_bytes()).hexdigest()
     metadata['demo_sha256'] = hashlib.sha256(data).hexdigest()
-    metadata['fastmm_sha256'] = hashlib.sha256(fastmm.read_bytes()).hexdigest()
+    metadata['allocator'] = 'fastmm5' if fastmm else 'rtl'
+    metadata['fastmm_sha256'] = hashlib.sha256(fastmm.read_bytes()).hexdigest() if fastmm else None
     (folder / 'source.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
     print('BUILD PASS', role, flush=True)
     return exe
 
 
-def benchmark(root, role, exe, index, duration):
+def benchmark(root, role, exe, index, duration, concurrency=1000):
     prefix = root / f'{index}-{role}'
     guard = socket.socket()
     try:
@@ -115,9 +123,9 @@ def benchmark(root, role, exe, index, duration):
             else:
                 raise RuntimeError('server startup timeout')
             url = f'http://127.0.0.1:{PORT}/'
-            command([AB, '-n', '20000', '-c', '1000', '-k', url], root)
+            command([AB, '-n', '20000', '-c', str(concurrency), '-k', url], root)
             cpu_before = cpu_seconds(server)
-            raw = command([AB, '-n', '100000', '-c', '1000', '-k', url], root)
+            raw = command([AB, '-n', '100000', '-c', str(concurrency), '-k', url], root)
             ab_cpu = cpu_seconds(server) - cpu_before
             prefix.with_suffix('.ab.txt').write_bytes(raw)
             text = raw.decode(errors='replace')
@@ -126,7 +134,7 @@ def benchmark(root, role, exe, index, duration):
             assert field('Failed requests') == 0 and field('Total transferred') == 21000000, text
             assert 'Non-2xx responses:' not in text, text
             cpu_before = cpu_seconds(server)
-            raw = command([BOMB, '-c', '1000', '-d', str(duration) + 's', '-l', '-p', 'r', '-o', 'json', url], root)
+            raw = command([BOMB, '-c', str(concurrency), '-d', str(duration) + 's', '-l', '-p', 'r', '-o', 'json', url], root)
             bomb_cpu = cpu_seconds(server) - cpu_before
             prefix.with_suffix('.bomb.json').write_bytes(raw)
             data = json.loads(raw)['result']

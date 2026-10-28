@@ -92,6 +92,8 @@ def request(kind):
         'version-12': ('Sec-WebSocket-Version', '12'),
         'tokens': ('Connection', 'keep-alive, Upgrade'),
         'case': ('Upgrade', 'WebSocket')}
+    # 在字段值内部放入 U+FEFF，末尾 UTF-8 编码后成为真实 EF BB BF 字节；
+    # 它不在整条消息开头，不能被字符集探测剥掉后当作合法握手 token。
     if kind.startswith('bom-'):
         key = {'bom-key': 'Sec-WebSocket-Key', 'bom-version': 'Sec-WebSocket-Version',
                'bom-upgrade': 'Upgrade', 'bom-connection': 'Connection'}[kind]
@@ -186,7 +188,8 @@ def run_client(executable, case):
             with s:
                 s.settimeout(2)
                 if case == 'filtered-protocol':
-                    # Header 含 CRLF 时整次发送失败，不再过滤字段后继续握手。
+                    # 保留旧用例名便于对照；现合同是整次发送失败，不能过滤坏字段后继续握手。
+                    # 对端必须收到 EOF 而没有任何请求字节，客户端只能触发一次失败通知。
                     assert s.recv(1) == b'', '非法 Header 不应发送任何字节'
                     assert process.next() == 'RESULT 0 1', process.lines
                 else:
@@ -198,6 +201,7 @@ def run_client(executable, case):
                                     'fake-upgrade': ('Upgrade', 'xwebsocket'), 'fake-connection': ('Connection', 'XUpgrade'),
                                     'unicode-upgrade': ('Upgrade', 'webſocket'),
                                     'bad-accept': ('Sec-WebSocket-Accept', 'invalid')}
+                    # 双向验证：即便 Accept 的其余内容正确或子协议已被提议，前置 BOM 仍须拒绝。
                     if case.startswith('bom-'):
                         key = {'bom-accept': 'Sec-WebSocket-Accept', 'bom-upgrade': 'Upgrade', 'bom-connection': 'Connection', 'bom-protocol': 'Sec-WebSocket-Protocol'}[case]
                         if case == 'bom-protocol':

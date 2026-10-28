@@ -116,6 +116,7 @@ type
   ///   HTTP请求接口
   /// </summary>
   ICrossHttpRequest = interface
+  // RawRequestHeader:TBytes 改变了旧 RawRequestText:string 合同，IID 已更新，依赖需全量重编。
   ['{6F42E391-5B3B-41F6-9A75-8C03312E8669}']
     function GetConnection: ICrossHttpConnection;
     function GetRawRequestHeader: TBytes;
@@ -167,6 +168,10 @@ type
     /// <summary>
     ///   原始请求行、字段和结束空行的副本，不含正文。
     /// </summary>
+    /// <remarks>
+    ///   每次读取返回独立数组；修改它不会改变内部快照。
+    ///   后续修改 Header 的字段、复用 Parser 缓冲区或解析下一请求也不会改写此快照。
+    /// </remarks>
     property RawRequestHeader: TBytes read GetRawRequestHeader;
 
     /// <summary>
@@ -1848,6 +1853,7 @@ type
 
   TCrossHttpRequest = class(TInterfacedObject, ICrossHttpRequest)
   private
+    // 请求自行持有的线上头部副本，不依赖 Parser 临时缓冲区的生命周期。
     FRawRequestHeader: TBytes;
     FMethod, FPath, FQueryText, FPathAndQuery, FVersion: string;
     FRawPath, FRawQueryText, FRawPathAndQuery: string;
@@ -1936,6 +1942,10 @@ type
     function GetIsUrlEncodedFormData: Boolean;
     function GetPostDataSize: Int64;
 
+    /// <summary>从 Parser 交付的请求头字节建立请求元数据，不解析正文。</summary>
+    /// <param name="ADataPtr">借用的完整请求头缓冲区，范围由 Parser 保证。</param>
+    /// <param name="ADataSize">字节数，包含请求行及最终空行，不含正文，无需结尾零字符。</param>
+    /// <returns>结构或转换失败返回 False；调用方将其交给 Parser.Fail 处理。</returns>
     function ParseHeader(const ADataPtr: Pointer; const ADataSize: Integer): Boolean;
   public
     constructor Create(const AConnection: TCrossHttpConnection);
@@ -3066,6 +3076,9 @@ begin
 
   case FRequestObj.GetBodyType of
     btMultiPart:
+      // 输入可能只是正文的一段，frContinue 不是错误；frFailed 必须传播到 HTTP 失败态，
+      // 否则外层收够 Content-Length 后会把部分表单当成功请求发布。
+      // Fail 中止当前解析，队列/连接收尾负责释放表单，文件删除仍遵循 AutoDeleteFiles。
       if (FRequestObj.FBody as THttpMultiPartFormData).Decode(ADataPtr, ADataSize) = frFailed then
         (FHttpParser as TCrossHttpParser).Fail(400, 'Invalid multipart form data.');
 
@@ -4828,6 +4841,7 @@ end;
 
 function TCrossHttpRequest.GetRawRequestHeader: TBytes;
 begin
+  // TBytes 直接赋值会共享数据；此属性返回副本，防止调用方改写收到的原始请求证据。
   Result := Copy(FRawRequestHeader);
 end;
 
@@ -4876,6 +4890,32 @@ begin
   Result := FXForwardedFor;
 end;
 
+{$IFDEF DELPHI}
+// Delphi 的大写文本仍有额外复制；FPC 的 ToUpper 可复用结果，保留其原路径。
+// 仍先解码；只跳过已知规范大写协议文本的 ToUpper，不推断所有 ASCII/区域行为。
+// 直接返回 GetString 的结果，不赋同值 literal；未知文本继续原平台/区域转换。
+function _DecodeUpperRequestText(const AData: PByte; const ASize: Integer): string;
+begin
+  Result := TUtils.GetString(AData, ASize);
+  case Length(Result) of
+    3:
+      if (Result = THttpMethod.GET) or (Result = THttpMethod.PUT) then Exit;
+    4:
+      if (Result = THttpMethod.HEAD) or (Result = THttpMethod.POST) then Exit;
+    5:
+      if (Result = THttpMethod.PATCH) or (Result = THttpMethod.TRACE) then Exit;
+    6:
+      if Result = THttpMethod.DELETE then Exit;
+    7:
+      if (Result = THttpMethod.OPTIONS) or (Result = THttpMethod.CONNECT) then Exit;
+    8:
+      if (Result = 'HTTP/1.0') or (Result = 'HTTP/1.1') then Exit;
+  end;
+  Result := Result.ToUpper;
+end;
+
+{$ENDIF}
+
 function TCrossHttpRequest.ParseHeader(const ADataPtr: Pointer;
   const ADataSize: Integer): Boolean;
 var
@@ -4887,12 +4927,16 @@ var
   P: PByte;
 begin
   Assert(Self <> nil, 'FRequest is nil');
-  // 所有结构边界先按字节确定，再转换各文本片段。
+  // 输入范围由 Parser 在头部收齐后给出；下面原始缓冲区的偏移/长度均按字节计，
+  // 右边界不包含对应字符。#199 的根因是先做默认代码页转换破坏了 CRLF，
+  // 因此先确定每段边界再转换文本，不从转换后的字符串重新推断首行或目标的结构。
   try
     if (ADataPtr = nil) or (ADataSize <= 0) then Exit(False);
+    // 1. 保存自有快照。Parser 的输入内存可在回调结束后复用，不能只保存其指针。
     SetLength(FRawRequestHeader, ADataSize);
     Move(ADataPtr^, FRawRequestHeader[0], ADataSize);
     P := Pointer(FRawRequestHeader);
+    // 2. 在原始字节中定位首个 CRLF；LLineEnd 停在 CR，首行不包含这两个结束字节。
     LLineEnd := 0;
     while (LLineEnd < ADataSize) and (P[LLineEnd] <> 13) do
     begin
@@ -4900,6 +4944,8 @@ begin
       Inc(LLineEnd);
     end;
     if (LLineEnd + 1 >= ADataSize) or (P[LLineEnd + 1] <> 10) then Exit(False);
+    // 3. 用首行中的两个 SP 分出 METHOD、request-target、VERSION，三段均须非空。
+    // I/J 是空格位置；这里保留原有方法/版本解释规则，不引入额外的完整语法校验。
     I := 0;
     while (I < LLineEnd) and (P[I] <> 32) do Inc(I);
     if (I <= 0) or (I >= LLineEnd) then Exit(False);
@@ -4908,11 +4954,22 @@ begin
     if (J <= I + 1) or (J >= LLineEnd - 1) then Exit(False);
     LTargetStart := I + 1;
     LTargetEnd := J;
+    // 4. RequestCmdLine 是展示文本，保留百分号转义，后续结构解析不再依赖它。
+    // 方法和版本各自从已确定的字节区间转换；目标仍用 LTargetStart/LTargetEnd 定位。
     FRequestCmdLine := TUtils.GetString(P, LLineEnd);
+    {$IFDEF DELPHI}
+    FMethod := _DecodeUpperRequestText(P, I);
+    FVersion := _DecodeUpperRequestText(P + J + 1, LLineEnd - J - 1);
+    {$ELSE}
     FMethod := TUtils.GetString(P, I).ToUpper;
     FVersion := TUtils.GetString(P + J + 1, LLineEnd - J - 1).ToUpper;
+    {$ENDIF}
+    // 跳过首行及其 CRLF，把剩余字段（含结束空行）直接交给字节入口。
+    // 不能忽略 False，否则丢失的 CL/TE 会使正文长度和后续请求边界被误判。
     if not FHeader.Decode(P + LLineEnd + 2, ADataSize - LLineEnd - 2) then Exit(False);
 
+    // 5. RawPath/RawQuery 等字符串只表示“尚未百分号解码”的文本。
+    // path/query 的分界仍在原字节中找第一个问号，%3F 不会被误当成分隔符。
     FRawPathAndQuery := TUtils.GetString(P + LTargetStart, LTargetEnd - LTargetStart);
     K := LTargetStart;
     while (K < LTargetEnd) and (P[K] <> Ord('?')) do Inc(K);
@@ -4924,9 +4981,12 @@ begin
     begin
       LQueryStart := K + 1;
       FRawQueryText := TUtils.GetString(P + LQueryStart, LTargetEnd - LQueryStart);
+      // QueryText 用于读取整个解码后的查询文本，不能再拿它拆参数；
+      // 其中由 %26/%3D 还原出来的字符可能本来只是参数内容。
       FQueryText := TCrossHttpUtils.UrlDecode(FRawQueryText);
-      // 与 THttpUrlParams 的字符串入口保持相同规则：忽略空片段，保留重复项，
-      // 只解码一次。先找 &/=，防止字符集转换或 %26/%3D 改变参数边界。
+      // 6. 参数集合独立从原字节拆分：先按 & 分片，再以片段的首个 = 分出名称和值。
+      // 确定区间后才调用 GetString/UrlDecode；忽略空片段，保留无值项和重复名称。
+      // 这样 %26/%3D 保持为参数内容，值中第二个及后续 = 也不会再改变结构。
       K := LQueryStart;
       while K < LTargetEnd do
       begin
@@ -4946,10 +5006,14 @@ begin
         FQuery.Add(LName, LValue, True);
       end;
     end;
+    // 7. 路径也仅做一次百分号解码，例如 %252F 得到 %2F，不继续变成斜杠。
+    // 加号、非法百分号等处理沿用 UrlDecode；PathAndQuery 组合的是解码后的业务文本。
     FPath := TCrossHttpUtils.UrlDecode(FRawPath);
     FPathAndQuery := FPath;
     if FQueryText <> '' then FPathAndQuery := FPathAndQuery + '?' + FQueryText;
 
+    // 8. 使用已分段的文本和已校验的 Header 建立版本、Host、Cookie、正文类型等元数据。
+    // 后面的 CL/TE 数值、冲突与正文定界仍由外层 Parser 在本回调返回后统一验证。
     // HTTP协议版本
     if (FVersion = '') then
       FVersion := 'HTTP/1.0';
@@ -5077,7 +5141,8 @@ begin
 
     Result := True;
   except
-    // 任何解析异常都归一为 Result := False, 由 _OnHeaderData 发 400.
+    // 参数/字段转换等异常统一返回 False；_OnHeaderData 调用 Parser.Fail 发 400，
+    // 本方法不直接发送响应，也不允许失败请求进入正常业务回调。
     // 不记详细错误原因 (不足类型安全且可能被恶意请求刷日志),
     // 需要调试时可临时加 Logger 输出.
     on e: Exception do
@@ -5728,6 +5793,7 @@ begin
   if (FHeader[HEADER_CROSS_HTTP_SERVER] = '') then
     FHeader[HEADER_CROSS_HTTP_SERVER] := CROSS_HTTP_SERVER_NAME;
 
+  // 状态描述直接进入首行，不能含 CR/LF/NUL 等非法控制字符；否则整块头生成失败。
   if (FStatusText <> '') then
   begin
     if not TCrossHttpUtils.IsValidHeaderValue(FStatusText) then
@@ -5744,13 +5810,16 @@ begin
   LHeaderStr := LHttpVersion + ' ' + FStatusCode.ToString + ' ' +
     LStatusText + #13#10;
 
+  // Set-Cookie 独立于 FHeader 拼接；编码错误须向外传播，不能跳过坏 Cookie 继续发送。
   for LCookie in FCookies do
     LHeaderStr := LHeaderStr + HEADER_SETCOOKIE + ': ' + LCookie.Encode + #13#10;
 
   LHeaderStr := LHeaderStr + FHeader.Encode;
 
-  TCrossHttpUtils.CheckUtf16(LHeaderStr);
-  Result := TEncoding.UTF8.GetBytes(LHeaderStr);
+  // 字段先由 Encode 验证，随后完整头统一验证 UTF-16 并编码，保持错误报告顺序。
+  // 首行、独立 Cookie 和字段全部参与 ASCII 识别；输出始终是无 BOM UTF-8。
+  // 完整构造/编码成功后才提交，异常由 _Send/响应队列按原失败路径收尾。
+  Result := TCrossHttpUtils.EncodeHeader(LHeaderStr);
 end;
 
 procedure TCrossHttpResponse._SendHeaders(const ABodySize: Int64;

@@ -1193,6 +1193,9 @@ type
 
     procedure _SetResponseStream(const AValue: TStream);
   protected
+    // ADataPtr 是 Parser 已收齐的响应头；ADataSize 为字节数，含状态行和最终空行，不含正文。
+    // 输入仅在调用期间借用；各 Header 项复制自己的值数据。语法失败返回 False，
+    // 由 _OnHeaderData 交给 Parser.Fail；字符转换异常保留外层 Parser 的处理路径。
     function ParseHeader(const ADataPtr: Pointer; const ADataSize: Integer): Boolean;
 
     procedure TriggerResponseDataBegin; virtual;
@@ -2687,10 +2690,12 @@ begin
     if (FRequestObj.FHeader[HEADER_CROSS_HTTP_CLIENT] = '') then
       FRequestObj.FHeader[HEADER_CROSS_HTTP_CLIENT] := CROSS_HTTP_CLIENT_NAME;
 
+    // 必须在 URL 编码之前拒绝坏代理项，否则编码器可能先替换它们，再产生看似合法的 %xx。
     TCrossHttpUtils.CheckUtf16(FRequestObj.FPathAndParams);
     if FAutoUrlEncode then
     begin
       TCrossHttpUtils.CheckUtf16(FRequestObj.FPath);
+      // 初始化回调可独立修改 Query，它不一定与原 FPathAndParams 同步，所以也检查当前项。
       for LParam in FRequestObj.FQuery do
       begin
         TCrossHttpUtils.CheckUtf16(LParam.Name);
@@ -2703,7 +2708,7 @@ begin
       //   path: pchar = unreserved / pct-encoded / sub-delims / ":" / "@", 段间 "/"
       //         APreserveEncoded=True 启用 Normalizer 语义, 识别已有 %xx 序列,
       //         避免二次编码 (RFC 3986 §2.4 "MUST NOT encode the same string more than once")
-      //   query: 由 FQuery.Encode 处理, 内部 key/value 已被 SetUrl 阶段 Decode 到原始字节,
+      //   query: 由 FQuery.Encode 处理，key/value 是 SetUrl 解码后或调用方写入的字符串，
       //          重新编码时 key/value 均按严格 unreserved 集编码 (&/=/% 等都正确转义).
       LPathStr := TCrossHttpUtils.UrlEncode(FRequestObj.FPath, ['/', ':', '@'], True);
       if (FRequestObj.FQuery.Count > 0) then
@@ -2721,8 +2726,10 @@ begin
     _ReqUnlock;
   end;
 
-  TCrossHttpUtils.CheckUtf16(LHeaderStr);
-  Result := TEncoding.UTF8.GetBytes(LHeaderStr);
+  // 完整头统一验证 UTF-16 并编码；字段先 Encode，保持错误报告顺序。
+  // URL/query 原始值在百分号编码前的检查仍保留，不能依赖最终文本发现被替换的代理项。
+  // 首行和字段共同决定 ASCII 快路，输出始终为无 BOM UTF-8，异常仍由发送链结算失败。
+  Result := TCrossHttpUtils.EncodeHeader(LHeaderStr);
 end;
 
 procedure TCrossHttpClientConnection._EndRequest;
@@ -3387,6 +3394,8 @@ var
 begin
   Result := False;
   if (ADataPtr = nil) or (ADataSize <= 0) then Exit;
+  // 1. 直接扫描借用的原始缓冲区，先确定状态行边界，不能先转换整块头。
+  // 下标从 0 开始且均为字节偏移；LLineEnd 指向行末 CR，不计入状态文本。
   P := ADataPtr;
   LLineEnd := 0;
   while (LLineEnd < ADataSize) and (P[LLineEnd] <> 13) do
@@ -3395,7 +3404,9 @@ begin
     Inc(LLineEnd);
   end;
   if (LLineEnd + 1 >= ADataSize) or (P[LLineEnd + 1] <> 10) then Exit;
-  // 固定的 ASCII 版本和三位状态码先按原始字节定位。
+  // 2. 当前支持的状态行布局为 HTTP/1.x SP 三位状态码 SP 原因文本。
+  // 8/12 是两个 SP 的字节偏移；长度至少 13，最后一个 SP 后的原因文本可以为空。
+  // 版本和状态码是 ASCII 控制内容，先验证原字节，避免文本转换改变其意义。
   if (LLineEnd < 13) or (P[8] <> 32) or (P[12] <> 32) then Exit;
   for I := 0 to 7 do
     if P[I] > 127 then Exit;
@@ -3405,12 +3416,15 @@ begin
     or (P[10] < Ord('0')) or (P[10] > Ord('9'))
     or (P[11] < Ord('0')) or (P[11] > Ord('9')) then Exit;
   FStatusCode := (P[9] - Ord('0')) * 100 + (P[10] - Ord('0')) * 10 + P[11] - Ord('0');
+  // 3. 原因文本可含非 ASCII，单独转换这个已确定的区间，不用其结果寻找状态行边界。
   FStatusText := TUtils.GetString(P + 13, LLineEnd - 13);
+  // 4. 剩余区间仍为原始字节，交给 Header.Decode 校验、保存 raw 并转换各值。
+  // 必须检查返回值，不能使用半份头继续推断正文长度或进入 WebSocket 升级。
   if not FHeader.Decode(P + LLineEnd + 2, ADataSize - LLineEnd - 2) then Exit;
   FKeepAlive := not FHeader.ContainsToken(HEADER_CONNECTION, 'close')
     and ((FHttpVer = 'HTTP/1.1') or FHeader.ContainsToken(HEADER_CONNECTION, 'keep-alive'));
 
-  // 解析 Set-Cookie
+  // 5. 从完整字段集合派生响应属性。逐项读取 Set-Cookie，保留重复字段，不能合并为一个值。
   for LHeader in FHeader do
   begin
     if TStrUtils.SameText(LHeader.Name, HEADER_SETCOOKIE) then
@@ -3422,6 +3436,7 @@ begin
   end;
 
   FContentType := FHeader[HEADER_CONTENT_TYPE];
+  // 此处只是响应属性；CL/TE 的合法性、重复值和正文定界由外层 Parser 统一检查。
   FContentLength := StrToInt64Def(FHeader[HEADER_CONTENT_LENGTH], -1);
 
   // 数据的编码方式
@@ -3437,6 +3452,7 @@ begin
   // br: Brotli压缩算法, Brotli通常比gzip和deflate更高效
   FContentEncoding := FHeader[HEADER_CONTENT_ENCODING];
 
+  // 调用方在本方法成功后先设置 HEAD/1xx/204/304 的无正文标记，Parser 再处理定界。
   Result := True;
 end;
 

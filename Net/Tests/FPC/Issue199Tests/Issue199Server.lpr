@@ -90,7 +90,8 @@ begin
     end;
   if LHeaderSize = 0 then Exit;
   FHeaderProbed := True;
-  // 仅观察与 ParseHeader 相同的转换，不把这个副本传入生产解析器。
+  // 故意重演 #199 修复前的整块默认代码页转换，观察它是否破坏 CRLF。
+  // 当前生产 ParseHeader 已改为字节解析；此诊断副本和 HEADER_DECODE 日志不代表生产结果。
   SetString(LText, MarshaledAString(@FReceived[0]), LHeaderSize);
   Log(Format('CONVERT conn=%d raw_bytes=%d chars=%d nul_index=%d',
     [FNumber, LHeaderSize, Length(LText), LText.IndexOf(#0)]));
@@ -110,6 +111,7 @@ procedure TProbeConnection.Capture(const ABuf: Pointer; const ALen: Integer);
 var
   LOldSize: Integer;
 begin
+  // ABuf 只在接收回调期间有效，ALen 为字节数；复制后累计完整线上输入供逐字节对照。
   if ALen > 0 then
   begin
     LOldSize := Length(FReceived);
@@ -163,6 +165,7 @@ begin
     end;
   end;
   SaveBytes(Format('body-%d.bin', [LNumber]), LBody);
+  // 此快照来自生产解析路径且不含正文；NUL 也直接按收到的字节检查，避免二次字符转换。
   LRawHeader := ARequest.RawRequestHeader;
   LNullIndex := -1;
   for I := 0 to Length(LRawHeader) - 1 do
@@ -178,6 +181,8 @@ begin
      Ord(ARequest.RawBody = nil), Length(LBody), LNullIndex]);
   Log(LReport);
   Log('REFERER_UTF16 ' + CodeUnits(ARequest.Header['Referer']));
+  // 故意不按 Method 过滤业务回调：旧错误可能把未消费正文拼进下一条 Method，
+  // runner 必须检查实际 Method/正文，不能只因响应 200 就判断修复成功。
   AResponse.SendNoCompress(LReport);
 end;
 

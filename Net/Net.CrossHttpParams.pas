@@ -38,11 +38,24 @@ uses
 
 type
   TParamEntry = record
+    // 业务使用的名称和值；Value 可以直接来自字符串，也可以由原始字节转换。
     Name, Value: string;
-    // 仅字节来源保留原值；数组按 Delphi/FPC 常规引用语义共享，请视为只读。
+    // 仅字节来源保存原值。Header.Decode 会先去掉值两侧的 SP/HTAB，
+    // 字节构造器本身不裁剪；完整行和原始空白见请求的 RawRequestHeader。
+    // 记录复制、Items、枚举和 Assign 均共享数组；修改前应自行 Copy。
     RawValue: TBytes;
+    // True 也可以对应空 RawValue，表示“收到过空值”；False 表示没有字节来源。
     HasRawValue: Boolean;
+    /// <summary>保存名称和值字符串，不生成原始字节，也不校验具体协议语法。</summary>
     constructor Create(const AName, AValue: string); overload;
+    /// <summary>复制字段值字节，并通过 TUtils.GetString 生成 Value。</summary>
+    /// <param name="AName">已取得的参数名；本构造器不解析名称或冒号。</param>
+    /// <param name="ARawValue">值缓冲区，只在调用期间借用，不保留输入指针。</param>
+    /// <param name="ARawSize">字节数，不包含隐含的结尾零字符；零长度不读取指针。</param>
+    /// <remarks>
+    ///   负长度或 nil/正长度抛 EArgumentException。GetString 的 BOM 检测、
+    ///   编码回退及转换异常保持原样；这不是新增的严格 UTF-8 解码器。
+    /// </remarks>
     constructor Create(const AName: string; const ARawValue: Pointer;
       const ARawSize: Integer); overload;
   end;
@@ -86,12 +99,12 @@ type
     function GetEnumerator: TEnumerator; inline;
 
     /// <summary>
-    ///   从源对象设置数据
+    ///   复制完整记录，RawValue 按动态数组的引用语义共享；Self 不操作，nil 清空。
     /// </summary>
     procedure Assign(const ASource: TBaseParams);
 
     /// <summary>
-    ///   添加参数
+    ///   追加完整记录，允许重名，不重新解码或修正四个字段；调用方维护其一致性。
     /// </summary>
     procedure Add(const AParamValue: TParamEntry); overload;
 
@@ -105,7 +118,8 @@ type
     ///   参数值
     /// </param>
     /// <param name="ADupAllowed">
-    ///   是否允许重名参数
+    ///   True 追加；False 更新第一条同名项，不存在时追加。
+    ///   此字符串入口使目标项没有原始字节来源，不影响其他重复项。
     /// </param>
     procedure Add(const AName, AValue: string; ADupAllowed: Boolean = False); overload;
 
@@ -194,6 +208,10 @@ type
     /// <returns>
     ///   如果找到参数返回True，否则返回False
     /// </returns>
+    /// <remarks>
+    ///   按原顺序返回各项的 Value 文本，不合并重复字段；原始字节通过 Items/枚举中的
+    ///   RawValue、HasRawValue 查看，此方法不会重新解码或回放 raw。
+    /// </remarks>
     function GetHeaderValues(const AName: string; out AValues: TArray<string>): Boolean;
 
     /// <summary>
@@ -227,6 +245,10 @@ type
     /// <value>
     ///   参数名值对
     /// </value>
+    /// <remarks>
+    ///   读写的是完整记录，RawValue 引用共享。直接修改 Value 再回写时，
+    ///   调用方须同步维护来源状态；按名称写字符串则由集合自动清除该项来源。
+    /// </remarks>
     property Items[AIndex: Integer]: TParamEntry read GetItem write SetItem;
 
     /// <summary>
@@ -277,28 +299,50 @@ type
   /// </summary>
   THttpHeader = class(TBaseParams)
   private
+    // 共用结构扫描器，ASize 的单位由 ABytes 决定：
+    // True：AData 按 PByte 读取，ASize 为字节数，并复制保存字段原始值；
+    // False：AData 按 PChar 读取，ASize 为 UTF-16 码元数，不生成 RawValue。
+    // 输入仅同步借用；所有下标沿用上述单位，不能把字符长度乘 SizeOf(Char)。
     function _Decode(const AData: Pointer; const ASize: Integer;
       const AClear, ABytes: Boolean): Boolean;
   public
-    // ASize 为字节数；只接收字段集合，不包含请求行/状态行及正文。
+    /// <summary>解析完整字段集合，不含请求行/状态行和正文；不负责增量组包。</summary>
+    /// <param name="AData">只读输入缓冲区，在本次调用期间必须有效，不保存其指针。</param>
+    /// <param name="ASize">准确的字节数；不要求结尾零字符，零长度空集合有效。</param>
+    /// <param name="AClear">
+    ///   True 先清空；False 追加。语法失败或转换异常时撤销本次新增项：
+    ///   清空模式最终为空，追加模式保留原有记录和原始值。
+    /// </param>
+    /// <returns>结构有效返回 True，语法错误返回 False。</returns>
+    /// <remarks>
+    ///   可省略最后一行 CRLF 或最后的结束空行；字段间必须为 CRLF，
+    ///   结束空行后不允许额外数据。字段值保存裁剪最外侧 SP/HTAB 后的字节。
+    ///   负长度或 nil/正长度在改变集合前抛 EArgumentException；GetString 异常向上传播。
+    /// </remarks>
     function Decode(const AData: Pointer; const ASize: Integer;
       AClear: Boolean = True): Boolean; reintroduce; overload;
     // 在所有同名头中匹配完整的逗号分隔 token，不接受子串。
     function ContainsToken(const AName, AToken: string): Boolean;
     /// <summary>
-    ///   从已编码的字符串中解码
+    ///   解析已有 Unicode 字符串；结构和回滚规则同字节入口，不生成原始字节。
     /// </summary>
     /// <param name="AEncodedParams">
-    ///   已编码字符串
+    ///   完整字段集合。Length 按 UTF-16 码元计数，不是 UTF-8 字节数。
     /// </param>
-    /// <param name="AClear">
-    ///   是否清除现有数据
-    /// </param>
+    /// <param name="AClear">True 清空后解析，False 追加；失败时回滚本次新增项。</param>
+    /// <remarks>
+    ///   已有文本不再经 GetString 转换。网络原始控制字节的校验只在字节入口执行。
+    ///   Header 的 Create(string)/Add(string) 包装此入口，并将 False 转为 EConvertError。
+    /// </remarks>
     function Decode(const AEncodedParams: string; AClear: Boolean = True): Boolean; overload; override;
 
     /// <summary>
-    ///   编码为字符串
+    ///   用当前 Value 生成含最终空行的 Unicode 头部文本，不回放 RawValue。
     /// </summary>
+    /// <remarks>
+    ///   非法字段或无效 UTF-16 抛 EConvertError，不静默跳过字段，不修改集合。
+    ///   此处不发送数据；调用方拼好首行等内容后再将完整头部编码为无 BOM UTF-8。
+    /// </remarks>
     function Encode: string; override;
   end;
 
@@ -917,6 +961,64 @@ procedure ClearExpiredSessionsForTest(const ASessions: TSessions);
 
 implementation
 
+type
+  PParamEntry = ^TParamEntry;
+
+  {$IFDEF FPC}
+  // 仅 Header 使用，避免含 raw 的记录在 FPC Clear 中先搬到临时删除数组。
+  TParamList = TList<TParamEntry>;
+  THeaderParamList = class(TParamList)
+  protected
+    procedure SetCapacity(AValue: SizeInt); override;
+  public
+    procedure ClearHeader;
+  end;
+  TParamListClass = class of TParamList;
+  {$ENDIF}
+
+{$IFDEF FPC}
+procedure THeaderParamList.SetCapacity(AValue: SizeInt);
+begin
+  if (AValue = 0) and not Assigned(OnNotify) then
+  begin
+    // 使用 RTL 留给后代的字段；释放所有托管引用及容量，不跨请求保留数组。
+    // TList.Destroy 也经由此虚方法释放容量。
+    FLength := 0;
+    FItems := nil;
+  end else
+    inherited SetCapacity(AValue);
+end;
+
+procedure THeaderParamList.ClearHeader;
+begin
+  // 配置通知时完全沿用原 Clear，保留删除通知的内容、顺序和调用次数。
+  if Assigned(OnNotify) then
+    inherited Clear
+  else
+    SetCapacity(0);
+end;
+{$ENDIF}
+
+// 只借用公开后备数组的元素地址，不依赖 TList 私有布局，也不建立整记录副本。
+// Delphi 用 PList 避免 GetList 返回托管数组临时引用；FPC 的 List 直接读取数组字段。
+// 空数组可返回 nil；调用方仅在 Count 范围内读取，不跨突变/扩容或用户回调保存指针。
+function _ParamData(const AParams: TList<TParamEntry>): PParamEntry; inline;
+begin
+  {$IFDEF DELPHI}
+    {$IF CompilerVersion >= 35.0}
+    // D11+ 使用公开 PList，避免 List getter 返回托管数组造成临时引用。
+    Result := PParamEntry(AParams.PList^);
+    {$ELSE}
+    // 旧 Delphi 保留已有 List 入口；其运行性能未纳入本轮验证。
+    Result := PParamEntry(AParams.List);
+    {$IFEND}
+  {$ELSE}
+  // FPC 的公开 List 直接读取后备数组，不需要 Delphi 的 PList 适配。
+  Result := PParamEntry(AParams.List);
+  {$ENDIF}
+end;
+
+
 {$IFDEF CROSS_SESSION_TESTS}
 procedure SetSessionTestOptions(const AOptions: TSessionTestOptions);
 begin
@@ -1041,22 +1143,32 @@ begin
   HasRawValue := False;
 end;
 
-constructor TParamEntry.Create(const AName: string; const ARawValue: Pointer;
-  const ARawSize: Integer);
+// AEntry 是调用方拥有的记录；AName 和原字节仅在本次调用期间借用。
+// 先复制 raw 并完成 GetString，再提交各托管字段，参数/分配/转换异常不改动旧记录。
+// 过程使用 var 显式写入槽位，避免依赖不同编译器的实例 record constructor 调用语义。
+procedure _InitRawParamEntry(var AEntry: TParamEntry; const AName: string;
+  const ARawValue: Pointer; const ARawSize: Integer); inline;
 var
   LRawValue: TBytes;
   LValue: string;
 begin
   if (ARawSize < 0) or ((ARawValue = nil) and (ARawSize > 0)) then
     raise EArgumentException.Create('Invalid header value buffer');
+  // 输入可在调用返回后被释放/覆盖；解码与保存使用同一份自有 raw，空值也保留来源。
   SetLength(LRawValue, ARawSize);
   if ARawSize > 0 then
     Move(ARawValue^, LRawValue[0], ARawSize);
-  LValue := TUtils.GetString(LRawValue);
-  Name := AName;
-  Value := LValue;
-  RawValue := LRawValue;
-  HasRawValue := True;
+  LValue := TUtils.GetString(PByte(LRawValue), ARawSize);
+  AEntry.Name := AName;
+  AEntry.Value := LValue;
+  AEntry.RawValue := LRawValue;
+  AEntry.HasRawValue := True;
+end;
+
+constructor TParamEntry.Create(const AName: string; const ARawValue: Pointer;
+  const ARawSize: Integer);
+begin
+  _InitRawParamEntry(Self, AName, ARawValue, ARawSize);
 end;
 
 { TBaseParams.TEnumerator }
@@ -1081,8 +1193,19 @@ end;
 { TBaseParams }
 
 constructor TBaseParams.Create;
+{$IFDEF FPC}
+var
+  LParamsClass: TParamListClass;
+{$ENDIF}
 begin
+  {$IFDEF FPC}
+  LParamsClass := TParamList;
+  if Self is THttpHeader then
+    LParamsClass := THeaderParamList;
+  FParams := LParamsClass.Create(TComparer<TParamEntry>.Construct(
+  {$ELSE}
   FParams := TList<TParamEntry>.Create(TComparer<TParamEntry>.Construct(
+  {$ENDIF}
     function(const Left, Right: TParamEntry): Integer
     begin
       Result := CompareText(Left.Name, Right.Name, TLocaleOptions.loUserLocale);
@@ -1092,6 +1215,8 @@ end;
 constructor TBaseParams.Create(const AEncodedParams: string);
 begin
   Create;
+  // 构造器没有 Boolean 返回值；仅 Header 将严格解析失败转为异常，
+  // 不改变 URL 参数、Cookie 等其他子类的既有构造行为。
   if not Decode(AEncodedParams, True) and (Self is THttpHeader) then
     raise EConvertError.Create('Invalid HTTP header');
 end;
@@ -1112,6 +1237,7 @@ end;
 
 procedure TBaseParams.Add(const AEncodedParams: string);
 begin
+  // Header.Decode 先完成追加回滚，再在此抛错；经基类引用调用也遵守此合同。
   if not Decode(AEncodedParams, False) and (Self is THttpHeader) then
     raise EConvertError.Create('Invalid HTTP header');
 end;
@@ -1120,11 +1246,13 @@ procedure TBaseParams.Assign(const ASource: TBaseParams);
 var
   LParamItem: TParamEntry;
 begin
+  // 必须在 Clear 前判断自赋值，否则也会清空作为来源的同一对象。
   if ASource = Self then Exit;
   Clear;
 
   if (ASource = nil) or (ASource.Count <= 0) then Exit;
 
+  // 按完整记录复制，保留顺序、重复项与来源标记，不额外深拷贝 RawValue。
   for LParamItem in ASource do
     Add(LParamItem);
 end;
@@ -1136,15 +1264,26 @@ end;
 
 procedure TBaseParams.Clear;
 begin
-  FParams.Clear;
+  {$IFDEF FPC}
+  if FParams is THeaderParamList then
+    THeaderParamList(FParams).ClearHeader
+  else
+  {$ENDIF}
+    FParams.Clear;
 end;
 
 function TBaseParams.GetParamIndex(const AName: string): Integer;
 var
   I: Integer;
+  P: PParamEntry;
 begin
+  // 这里只需 Name；直接借用元素，避免 Items 为每次比较复制包含 raw 的整条记录。
+  P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
-    if TStrUtils.SameText(FParams[I].Name, AName) then Exit(I);
+  begin
+    if TStrUtils.SameText(P^.Name, AName) then Exit(I);
+    Inc(P);
+  end;
   Result := -1;
 end;
 
@@ -1152,11 +1291,14 @@ function TBaseParams.GetParamValue(const AName: string;
   out AValue: string): Boolean;
 var
   I: Integer;
+  P: PParamEntry;
 begin
   I := GetParamIndex(AName);
   if (I >= 0) then
   begin
-    AValue := FParams[I].Value;
+    P := _ParamData(FParams);
+    Inc(P, I);
+    AValue := P^.Value;
     Exit(True);
   end;
 
@@ -1168,18 +1310,23 @@ function TBaseParams.GetHeaderValues(const AName: string;
   out AValues: TArray<string>): Boolean;
 var
   I, LCount: Integer;
+  P: PParamEntry;
 begin
   AValues := nil;
   LCount := 0;
   Result := False;
+  P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
   begin
-    if not TStrUtils.SameText(FParams[I].Name, AName) then Continue;
-    // 找到首项后才预留剩余字段的容量；缺失字段查询不申请临时数组。
-    if LCount = 0 then SetLength(AValues, FParams.Count - I);
-    AValues[LCount] := FParams[I].Value;
-    Inc(LCount);
-    Result := True;
+    if TStrUtils.SameText(P^.Name, AName) then
+    begin
+      // 找到首项后才预留剩余字段的容量；缺失字段查询不申请临时数组。
+      if LCount = 0 then SetLength(AValues, FParams.Count - I);
+      AValues[LCount] := P^.Value;
+      Inc(LCount);
+      Result := True;
+    end;
+    Inc(P);
   end;
   SetLength(AValues, LCount);
 end;
@@ -1190,13 +1337,16 @@ var
   LValue: string;
   C, T: Char;
   LMatched: Boolean;
+  P: PParamEntry;
 begin
   if not _IsHttpToken(AToken) then Exit(False);
   LTokenLength := Length(AToken);
+  P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
-    if TStrUtils.SameText(FParams[I].Name, AName) then
+  begin
+    if TStrUtils.SameText(P^.Name, AName) then
     begin
-      LValue := FParams[I].Value;
+      LValue := P^.Value;
       LLength := Length(LValue);
       LStart := 1;
       while LStart <= LLength do
@@ -1229,6 +1379,8 @@ begin
         LStart := LNext;
       end;
     end;
+    Inc(P);
+  end;
   Result := False;
 end;
 
@@ -1270,15 +1422,21 @@ end;
 function TBaseParams.GetParam(const AName: string): string;
 var
   I: Integer;
+  P: PParamEntry;
 begin
   I := GetParamIndex(AName);
   if (I >= 0) then
-    Exit(FParams[I].Value);
+  begin
+    P := _ParamData(FParams);
+    Inc(P, I);
+    Exit(P^.Value);
+  end;
   Result := '';
 end;
 
 procedure TBaseParams.SetItem(AIndex: Integer; const AValue: TParamEntry);
 begin
+  // 完整 record 回写由调用方维护 Value/raw 的一致性，不套用字符串 setter 的失效规则。
   FParams[AIndex] := AValue;
 end;
 
@@ -1292,6 +1450,7 @@ begin
   begin
     LItem := FParams[I];
     LItem.Value := AValue;
+    // 新字符串不再代表收到的字节；只清除此目标项的来源，保留名称及其他项。
     LItem.RawValue := nil;
     LItem.HasRawValue := False;
     FParams[I] := LItem;
@@ -1419,27 +1578,53 @@ end;
 
 function THttpHeader.Decode(const AEncodedParams: string; AClear: Boolean): Boolean;
 begin
+  // PChar 指向字符串的 UTF-16 内容；False 让扫描器按 Char 而非 Byte 寻址。
+  // Length 是码元数，无需乘 SizeOf(Char)；同步借用输入，解析结果另行复制。
   Result := _Decode(PChar(AEncodedParams), Length(AEncodedParams), AClear, False);
 end;
 
-// 先检查这些字段的原始控制字节，避免字符集探测移除 BOM 后改变
-// 消息定界、编码或握手。普通文本字段继续交给 GetString 处理。
-function _IsControlHeader(const AName: string): Boolean;
+type
+  TControlHeaderKind = (chkText, chkAscii, chkQuotedText);
+
+// 名称已通过 ASCII token 校验；与固定小写协议名比较，不调用区域相关的 Unicode 比较。
+function _SameAsciiHeaderName(const AName, ALowerName: string): Boolean; inline;
+var
+  I: Integer;
 begin
-  Result := TStrUtils.SameText(AName, HEADER_CONTENT_LENGTH)
-    or TStrUtils.SameText(AName, HEADER_TRANSFER_ENCODING)
-    or TStrUtils.SameText(AName, HEADER_CONTENT_ENCODING)
-    or TStrUtils.SameText(AName, HEADER_ACCEPT_ENCODING)
-    or TStrUtils.SameText(AName, HEADER_CONNECTION)
-    or TStrUtils.SameText(AName, HEADER_UPGRADE)
-    or TStrUtils.SameText(AName, HEADER_EXPECT)
-    or TStrUtils.SameText(AName, 'Sec-WebSocket-Key')
-    or TStrUtils.SameText(AName, 'Sec-WebSocket-Version')
-    or TStrUtils.SameText(AName, 'Sec-WebSocket-Accept')
-    or TStrUtils.SameText(AName, 'Sec-WebSocket-Protocol')
-    or TStrUtils.SameText(AName, 'Sec-WebSocket-Extensions');
+  if Length(AName) <> Length(ALowerName) then Exit(False);
+  for I := 1 to Length(AName) do
+    if (Ord(AName[I]) or $20) <> Ord(ALowerName[I]) then Exit(False);
+  Result := True;
 end;
 
+// 一次分类同时决定是否需要原始控制字节校验，以及是否允许引号中的 obs-text。
+// 这里只识别名称；具体数字、Base64、传输编码等语义仍由相应协议层校验。
+function _GetControlHeaderKind(const AName: string): TControlHeaderKind;
+begin
+  Result := chkAscii;
+  case Length(AName) of
+    6: if _SameAsciiHeaderName(AName, 'expect') then Exit(chkQuotedText);
+    7: if _SameAsciiHeaderName(AName, 'upgrade') then Exit;
+    10: if _SameAsciiHeaderName(AName, 'connection') then Exit;
+    14: if _SameAsciiHeaderName(AName, 'content-length') then Exit;
+    15: if _SameAsciiHeaderName(AName, 'accept-encoding') then Exit;
+    16: if _SameAsciiHeaderName(AName, 'content-encoding') then Exit;
+    17:
+      begin
+        if _SameAsciiHeaderName(AName, 'transfer-encoding') then Exit(chkQuotedText);
+        if _SameAsciiHeaderName(AName, 'sec-websocket-key') then Exit;
+      end;
+    20: if _SameAsciiHeaderName(AName, 'sec-websocket-accept') then Exit;
+    21: if _SameAsciiHeaderName(AName, 'sec-websocket-version') then Exit;
+    22: if _SameAsciiHeaderName(AName, 'sec-websocket-protocol') then Exit;
+    24: if _SameAsciiHeaderName(AName, 'sec-websocket-extensions') then Exit;
+  end;
+  Result := chkText;
+end;
+
+// AData/ASize 是裁剪外侧 OWS 后的值及字节数；外层已拒绝 CR/LF/NUL/DEL 等非法字节。
+// AAllowQuotedText 仅为 Expect/Transfer-Encoding 开启，允许引号参数中的 obs-text。
+// 此筛查早于字符转换，不替代对应协议层的完整字段语义校验。
 function _IsValidControlBytes(const AData: PByte; const ASize: Integer;
   const AAllowQuotedText: Boolean): Boolean;
 var
@@ -1456,6 +1641,7 @@ begin
     // 转义边界仍按字节判断。具体 token/编码语法由现有协议层继续校验。
     if (C > 127) and not LQuoted then Exit(False);
     if not AAllowQuotedText then Continue;
+    // 反斜杠只在引号内转义紧随的一个字节；被转义的引号不能结束参数。
     if LEscaped then
       LEscaped := False
     else if LQuoted and (C = Ord('\')) then
@@ -1463,30 +1649,160 @@ begin
     else if C = Ord('"') then
       LQuoted := not LQuoted;
   end;
+  // 未闭合引号（包括引号内悬空反斜杠）不能视为完整参数。
   Result := not LQuoted;
+end;
+
+// AStart/AEnd 是当前行起点与完整输入的右边界；AEnd 不可解引用。
+// ALineEnd 返回 CR 或输入末端；AColon=nil 表示未找到冒号。这里只识别结构/字符，
+// 空行、名称非空及字段构造仍由共用 Decode 处理，不在扫描器内做文本解码。
+function _ScanByteHeaderLine(const AStart, AEnd: PByte;
+  out ALineEnd, AColon: PByte): Boolean;
+const
+  // 与 IsTokenChar 在 0..255 的集合相同：字母、数字及 RFC token 标点。
+  TOKEN_BYTES: set of Byte = [33, 35..39, 42..43, 45..46, 48..57,
+    65..90, 94..96, 97..122, 124, 126];
+  LOW_BITS: UInt64 = $7F7F7F7F7F7F7F7F;
+  // 分成两个 32 位正值，避免 FPC 在 R+ 下先把高位十六进制常量折为负 Int64。
+  HIGH_BITS: UInt64 = (UInt64($80808080) shl 32) or UInt64($80808080);
+  SPACE_BIAS: UInt64 = $6060606060606060;
+type
+  // 沿用 Utils._IsUTF8 的 packed 读取模式，不要求调用方按 8 字节对齐。
+  THeaderByteBlock = packed record
+    Value: UInt64;
+  end;
+  PHeaderByteBlock = ^THeaderByteBlock;
+var
+  P: PByte;
+  C: Byte;
+  W, X: UInt64;
+begin
+  Result := False;
+  AColon := nil;
+  P := AStart;
+  while P < AEnd do
+  begin
+    C := P^;
+    if C = 13 then Break;
+    if C = Ord(':') then
+    begin
+      AColon := P;
+      Inc(P);
+      Break;
+    end;
+    if not (C in TOKEN_BYTES) then Exit;
+    Inc(P);
+  end;
+  if AColon <> nil then
+  begin
+    // 明确证明 8 字节都在输入内才读取；遇到特殊块后只走原标量余下部分。
+    while AEnd - P >= SizeOf(THeaderByteBlock) do
+    begin
+      W := PHeaderByteBlock(P)^.Value;
+      // 每字节 ((b and $7F) + $60) or b 的高位为 1，当且仅当 b >= 32。
+      // 加数逐字节最大 $DF，无跨字节进位，也不可能发生 UInt64 溢出。
+      if ((((W and LOW_BITS) + SPACE_BIAS) or W) and HIGH_BITS) <> HIGH_BITS then Break;
+      X := W xor LOW_BITS;
+      // x = b xor $7F；((x and $7F) + $7F) or x 的高位为 0，当且仅当 b = DEL。
+      // 逐字节和最大 $FE，同样不依赖关闭溢出检查；两个掩码与端序无关。
+      if ((((X and LOW_BITS) + LOW_BITS) or X) and HIGH_BITS) <> HIGH_BITS then Break;
+      Inc(P, SizeOf(THeaderByteBlock));
+    end;
+    while P < AEnd do
+    begin
+      C := P^;
+      if C = 13 then Break;
+      // HTAB 仍合法，CR/CRLF 及其它 CTL 的判定保持原标量规则。
+      if not TCrossHttpUtils.IsHeaderValueChar(Char(C)) then Exit;
+      Inc(P);
+    end;
+  end;
+  ALineEnd := P;
+  if P < AEnd then
+  begin
+    // 此时 P 停在 CR；先验证下一字节存在，再读取，兼容完整布尔求值。
+    Inc(P);
+    if P = AEnd then Exit;
+    if P^ <> 10 then Exit;
+  end;
+  Result := True;
+end;
+
+// 字符入口使用同样结构规则，但指针步长为 UTF-16 码元，不扩宽或重新解码文本。
+function _ScanCharHeaderLine(const AStart, AEnd: PChar;
+  out ALineEnd, AColon: PChar): Boolean;
+var
+  P: PChar;
+  C: Char;
+begin
+  Result := False;
+  AColon := nil;
+  P := AStart;
+  while P < AEnd do
+  begin
+    C := P^;
+    if C = #13 then Break;
+    if C = ':' then
+    begin
+      AColon := P;
+      Inc(P);
+      Break;
+    end;
+    if not TCrossHttpUtils.IsTokenChar(C) then Exit;
+    Inc(P);
+  end;
+  if AColon <> nil then
+    while P < AEnd do
+    begin
+      C := P^;
+      if C = #13 then Break;
+      if not TCrossHttpUtils.IsHeaderValueChar(C) then Exit;
+      Inc(P);
+    end;
+  ALineEnd := P;
+  if P < AEnd then
+  begin
+    Inc(P);
+    if P = AEnd then Exit;
+    if P^ <> #10 then Exit;
+  end;
+  Result := True;
+end;
+
+// 仅失败时进入，不标 inline：Delete 在 FPC 会产生托管记录临时量。
+// 将该临时量限制在失败路径，正常解析不用初始化/终结整条 TParamEntry。
+procedure _RollbackHeader(const AParams: TList<TParamEntry>; const ACount: Integer);
+begin
+  while AParams.Count > ACount do AParams.Delete(AParams.Count - 1);
 end;
 
 function THttpHeader._Decode(const AData: Pointer; const ASize: Integer;
   const AClear, ABytes: Boolean): Boolean;
 var
+  // 下标从 0 开始，End 均为不包含的右边界；单位随 ABytes 选择字节或 UTF-16 码元。
   I, J, LStart, LEnd, LColon, LValueStart, LValueEnd, LOldCount: Integer;
   C: Char;
   LName, LValue: string;
+  LControlKind: TControlHeaderKind;
+  LNamePtr: PChar;
+  LItem: PParamEntry;
+  LItemIndex: Integer;
+  LByteLineEnd, LByteColon: PByte;
+  LCharLineEnd, LCharColon: PChar;
 
-  function ReadChar(const AIndex: Integer): Char;
-  begin
-    if ABytes then
-      Result := Char(PByte(AData)[AIndex])
-    else
-      Result := PChar(AData)[AIndex];
-  end;
 
 begin
   // 参数错误不能改变已有内容；语法失败只回滚本次追加的字段。
   if (ASize < 0) or ((AData = nil) and (ASize > 0)) then
     raise EArgumentException.Create('Invalid header buffer');
-  if AClear then FParams.Clear;
+  if AClear then
+    {$IFDEF FPC}
+    THeaderParamList(FParams).ClearHeader;
+    {$ELSE}
+    FParams.Clear;
+    {$ENDIF}
   LOldCount := FParams.Count;
+  // 完整成功前保持 False，所有提前 Exit 和转换异常都由 finally 统一回滚。
   Result := False;
   try
     I := 0;
@@ -1494,85 +1810,186 @@ begin
     begin
       LStart := I;
       LColon := -1;
-      while I < ASize do
+      // 每行只选择一次字节/码元扫描器；名称和值各自扫描，字符循环不再反复判断模式。
+      // 首个冒号确定值起点；原有 CRLF、非法字符及末行无 CRLF 的规则保持。
+      if ABytes then
       begin
-        C := ReadChar(I);
-        if C = #13 then
-        begin
-          if (I + 1 >= ASize) or (ReadChar(I + 1) <> #10) then Exit;
-          Break;
-        end;
-        if C = #10 then Exit;
-        if LColon < 0 then
-        begin
-          if C = ':' then
-            LColon := I
-          else if not TCrossHttpUtils.IsTokenChar(C) then Exit;
-        end
-        else if not TCrossHttpUtils.IsHeaderValueChar(C) then Exit;
-        Inc(I);
+        if not _ScanByteHeaderLine(PByte(AData) + I, PByte(AData) + ASize,
+          LByteLineEnd, LByteColon) then Exit;
+        LEnd := LByteLineEnd - PByte(AData);
+        if LByteColon <> nil then LColon := LByteColon - PByte(AData);
+      end else
+      begin
+        if not _ScanCharHeaderLine(PChar(AData) + I, PChar(AData) + ASize,
+          LCharLineEnd, LCharColon) then Exit;
+        // 显式换回码元下标，避免把 Char 指针的地址差误用成字节长度。
+        LEnd := (NativeUInt(LCharLineEnd) - NativeUInt(AData)) div SizeOf(Char);
+        if LCharColon <> nil then
+          LColon := (NativeUInt(LCharColon) - NativeUInt(AData)) div SizeOf(Char);
       end;
-      LEnd := I;
+      I := LEnd;
       if I < ASize then Inc(I, 2);
       if LEnd = LStart then
       begin
-        // 终止空行后不能再有字段或正文。
-        Result := I = ASize;
-        Exit;
+        // 终止空行后不能再有字段或正文；非法尾随仍由 finally 回滚。
+        if I <> ASize then Exit;
+        // 成功通过循环尾正常离开 try，避免 FPC 为正常请求调用局部异常栈展开。
+        Break;
       end;
       if LColon <= LStart then Exit;
+      // 只裁剪值最外侧的 ASCII OWS，保留引号内、内部和 Unicode 空白。
       LValueStart := LColon + 1;
       LValueEnd := LEnd;
-      while (LValueStart < LValueEnd)
-        and ((ReadChar(LValueStart) = ' ') or (ReadChar(LValueStart) = #9)) do
-        Inc(LValueStart);
-      while (LValueEnd > LValueStart)
-        and ((ReadChar(LValueEnd - 1) = ' ') or (ReadChar(LValueEnd - 1) = #9)) do
-        Dec(LValueEnd);
-      // name 已通过 ASCII token 校验，直接扩宽，避免任何字符集推断。
-      SetLength(LName, LColon - LStart);
-      for J := LStart to LColon - 1 do
-        LName[J - LStart + 1] := ReadChar(J);
+      // 显式先检查区间再读取，完整布尔求值下也不会触及长度以外的 OWS。
       if ABytes then
       begin
-        if _IsControlHeader(LName) and not _IsValidControlBytes(
+        while LValueStart < LValueEnd do
+        begin
+          C := Char(PByte(AData)[LValueStart]);
+          if (C <> ' ') and (C <> #9) then Break;
+          Inc(LValueStart);
+        end;
+        while LValueEnd > LValueStart do
+        begin
+          C := Char(PByte(AData)[LValueEnd - 1]);
+          if (C <> ' ') and (C <> #9) then Break;
+          Dec(LValueEnd);
+        end;
+      end else
+      begin
+        while LValueStart < LValueEnd do
+        begin
+          C := PChar(AData)[LValueStart];
+          if (C <> ' ') and (C <> #9) then Break;
+          Inc(LValueStart);
+        end;
+        while LValueEnd > LValueStart do
+        begin
+          C := PChar(AData)[LValueEnd - 1];
+          if (C <> ' ') and (C <> #9) then Break;
+          Dec(LValueEnd);
+        end;
+      end;
+      // name 已通过 ASCII token 校验，直接扩宽，避免任何字符集推断。
+      if ABytes then
+      begin
+        // SetLength 后一次取得自有可写指针，避免逐码元触发托管字符串唯一性检查。
+        SetLength(LName, LColon - LStart);
+        LNamePtr := PChar(LName);
+        for J := LStart to LColon - 1 do
+        begin
+          LNamePtr^ := Char(PByte(AData)[J]);
+          Inc(LNamePtr);
+        end;
+      end else
+        SetString(LName, PChar(AData) + LStart, LColon - LStart);
+      if ABytes then
+      begin
+        // 每个重复项都校验原始区间，避免 GetString 剥 BOM 后把非法 CL/TE 或握手值
+        // 变为合法文本。随后复制该区间，同时建立 Value/raw。
+        LControlKind := _GetControlHeaderKind(LName);
+        if (LControlKind <> chkText) and not _IsValidControlBytes(
           PByte(AData) + LValueStart, LValueEnd - LValueStart,
-          TStrUtils.SameText(LName, HEADER_EXPECT)
-          or TStrUtils.SameText(LName, HEADER_TRANSFER_ENCODING)) then Exit;
-        FParams.Add(TParamEntry.Create(LName, PByte(AData) + LValueStart,
-          LValueEnd - LValueStart));
+          LControlKind = chkQuotedText) then Exit;
+        // Add 可能扩容，必须之后重新取得槽位；失败时零记录由外层 finally 一并回滚。
+        LItemIndex := FParams.Count;
+        // 已有容量中的空槽由 RTL 保证为零；满容量仍用 Add，保持原先的扩容方式。
+        if LItemIndex < FParams.Capacity then
+          FParams.Count := LItemIndex + 1
+        else
+          LItemIndex := FParams.Add(Default(TParamEntry));
+        LItem := _ParamData(FParams);
+        Inc(LItem, LItemIndex);
+        // 新槽位由外层 finally 负责失败回滚；直接建立自有 raw，省去临时数组的引用搬运。
+        // 公开构造器仍使用强提交 helper，此处转换抛错时会删除本次新增的部分记录。
+        SetLength(LItem^.RawValue, LValueEnd - LValueStart);
+        if LValueEnd > LValueStart then
+          Move(PByte(AData)[LValueStart], LItem^.RawValue[0], LValueEnd - LValueStart);
+        LItem^.Value := TUtils.GetString(PByte(LItem^.RawValue), LValueEnd - LValueStart);
+        LItem^.Name := LName;
+        LItem^.HasRawValue := True;
       end
       else
       begin
+        // PChar 加法及 SetString 的长度均按 Char 计；复制已有文本，不制造字节来源。
         SetString(LValue, PChar(AData) + LValueStart, LValueEnd - LValueStart);
-        FParams.Add(TParamEntry.Create(LName, LValue));
+        LItemIndex := FParams.Count;
+        // 已有容量中的空槽由 RTL 保证为零；满容量仍用 Add，保持原先的扩容方式。
+        if LItemIndex < FParams.Capacity then
+          FParams.Count := LItemIndex + 1
+        else
+          LItemIndex := FParams.Add(Default(TParamEntry));
+        LItem := _ParamData(FParams);
+        Inc(LItem, LItemIndex);
+        // 新槽位保证全零；文本来源只提交 Name/Value，raw=nil、来源=False 不需重复赋值。
+        LItem^.Name := LName;
+        LItem^.Value := LValue;
       end;
     end;
     Result := True;
   finally
+    // 删除本次追加的整条记录，文本与 raw 一起释放；旧项及共享数组不被原地改写。
     if not Result then
-      while FParams.Count > LOldCount do FParams.Delete(FParams.Count - 1);
+      _RollbackHeader(FParams, LOldCount);
+  end;
+end;
+
+// AValue 是当前字段值；只借用显式长度范围，不寻找结束零字符。
+// AValidUtf16 累计整块字段的代理合法性，只会由 True 变 False。非法 HTTP 字符立即
+// 抛错；坏代理延迟至 Encode 完成所有字段检查后报告，保持原先字段错误优先的顺序。
+procedure _CheckHeaderValue(const AValue: string; var AValidUtf16: Boolean);
+var
+  P, LEnd: PChar;
+  C: Word;
+begin
+  P := PChar(AValue);
+  LEnd := P + Length(AValue);
+  while P < LEnd do
+  begin
+    C := Ord(P^);
+    Inc(P);
+    if ((C < 32) and (C <> 9)) or (C = 127) then
+      raise EConvertError.Create('Invalid HTTP header field');
+    if (C and $F800) <> $D800 then Continue;
+    if C <= $DBFF then
+    begin
+      // 先验证余量再读下一码元，完整布尔求值及恰好结尾的高代理也不会越界。
+      if P < LEnd then
+        if (Ord(P^) and $FC00) = $DC00 then
+        begin
+          Inc(P);
+          Continue;
+        end;
+    end;
+    // 非低代理的下一码元尚未消费，下轮仍会检查它是否是非法 CTL/DEL。
+    AValidUtf16 := False;
   end;
 end;
 
 function THttpHeader.Encode: string;
 var
   I: Integer;
-  LName, LValue: string;
+  LValidUtf16: Boolean;
+  P: PParamEntry;
 begin
   Result := '';
+  LValidUtf16 := True;
+  P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
   begin
-    LName := FParams[I].Name;
-    LValue := FParams[I].Value;
-    if not TCrossHttpUtils.IsValidHeaderName(LName)
-      or not TCrossHttpUtils.IsValidHeaderValue(LValue) then
+    // 非法项必须使整块生成失败，不能丢弃 CL/TE 或握手等关键字段后继续发送。
+    if not TCrossHttpUtils.IsValidHeaderName(P^.Name) then
       raise EConvertError.Create('Invalid HTTP header field');
+    // 一次遍历同时检查值字符和代理配对，避免构造后再扫描整个字段块。
+    _CheckHeaderValue(P^.Value, LValidUtf16);
     // 发送始终使用当前字符串，原始字节仅供查看。
-    Result := Result + LName + ': ' + LValue + #13#10;
+    Result := Result + P^.Name + ': ' + P^.Value + #13#10;
+    Inc(P);
   end;
   Result := Result + #13#10;
-  TCrossHttpUtils.CheckUtf16(Result);
+  // Name 已限定为 ASCII token，固定分隔符也为 ASCII；只需汇总各值的检查结果。
+  if not LValidUtf16 then
+    raise EConvertError.Create('Invalid UTF-16 in HTTP header');
 end;
 
 { TDelimitParams }
@@ -2381,6 +2798,8 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
     Result := TUtils.GetGUID.ToLower;
   end;
 
+  // AHeader 是已收齐的 part 头（含结束空行），AHeaderSize 为字节数，不含 boundary/正文。
+  // AFormField 尚由调用者持有；False 时调用者释放它，不把不完整字段加入表单。
   function __InitFormFieldByHeader(AFormField: TFormField;
     const AHeader: Pointer; const AHeaderSize: Integer): Boolean;
   var
@@ -2392,6 +2811,7 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
 
     LFieldHeader := THttpHeader.Create;
     try
+      // 在原始字节上识别字段边界，再让各值独立转换；不能先解码整个 part 头。
       if not LFieldHeader.Decode(AHeader, AHeaderSize) then Exit;
       LContentDisposition := LFieldHeader['Content-Disposition'];
       if (LContentDisposition = '') then Exit;
@@ -2603,6 +3023,7 @@ begin
                     AConsumed := I + 1;
                     Exit(frFailed);
                   end;
+                  // 辅助方法同步读取且复制所需值后才重置长度，缓冲区可供下一 part 复用。
                   FCurrentPartHeaderLen := 0;
                   FPartFields.Add(LNewField);
                   FCurrentPartField := LNewField;

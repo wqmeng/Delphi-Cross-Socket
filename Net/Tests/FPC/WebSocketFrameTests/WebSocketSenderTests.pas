@@ -11,6 +11,8 @@ uses SysUtils, Classes, SyncObjs, Generics.Collections, Net.SocketAPI, Net.Cross
 type
   TTestConnection = class(TCrossConnectionBase)
   private
+    // 手工创建的测试连接未登记到 Owner 的连接表，持有 Owner 不会形成相互拥有的引用环。
+    // 此接口随连接实例最终清理才释放，不能在 inherited destructor 前提前置 nil。
     FTestOwner: ICrossSocket;
   protected
     procedure DirectSend(const ABuffer:Pointer; const ACount:Integer;
@@ -45,6 +47,7 @@ constructor TTestConnection.Create;
 var LOwner: TCrossSocket;
 begin
   // 基类初始化发送限额需要有效 Owner；接口保持到连接完整析构后释放。
+  // Owner 提供基类所需配置；连接仍使用 INVALID_SOCKET，数据发送由本测试 DirectSend 模拟。
   LOwner := TCrossSocket.Create(1);
   FTestOwner := LOwner;
   inherited Create(LOwner,INVALID_SOCKET,ctConnect,'',nil);

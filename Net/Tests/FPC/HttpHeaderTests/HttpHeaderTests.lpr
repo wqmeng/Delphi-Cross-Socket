@@ -1,0 +1,477 @@
+﻿program HttpHeaderTests;
+{$I zLib.inc}
+{$IFNDEF FPC}{$APPTYPE CONSOLE}{$ENDIF}
+uses
+  {$IF DEFINED(FPC) AND DEFINED(POSIX)}cthreads, cwstring,{$ENDIF}
+  SysUtils, Classes, SyncObjs, Net.CrossHttpParams, Net.CrossHttpUtils,
+  Net.CrossHttpServer, Net.CrossHttpClient, Net.CrossSocket.Base, Net.SocketAPI,
+  Utils.Utils;
+type
+  TRequestAccess = class(TCrossHttpRequest);
+  TResponseAccess = class(TCrossHttpClientResponse);
+var Checks: Integer;
+
+procedure Check(const ACondition: Boolean; const AMessage: string);
+begin
+  Inc(Checks);
+  if not ACondition then raise Exception.Create(AMessage);
+end;
+
+function Bytes(const S: string): TBytes;
+begin Result := TEncoding.UTF8.GetBytes(S); end;
+
+function Wire(const S: string): AnsiString;
+var B: TBytes;
+begin B := Bytes(S); SetString(Result, PAnsiChar(Pointer(B)), Length(B)); end;
+
+function SameBytes(const A, B: TBytes): Boolean;
+begin
+  Result := Length(A) = Length(B);
+  if Result and (Length(A) > 0) then Result := CompareMem(Pointer(A), Pointer(B), Length(A));
+end;
+
+{$I ../HttpHotPathTests/HttpTestSupport.inc}
+
+procedure TestEntries;
+var H, Other: THttpHeader; B: TBytes; E, F: TParamEntry; Base: TBaseParams;
+    Failed: Boolean; Values: TArray<string>; N: Integer;
+begin
+  H := THttpHeader.Create; Other := THttpHeader.Create;
+  try
+    B := Bytes('中文'); E := TParamEntry.Create('X', Pointer(B), Length(B));
+    B[0] := 0;
+    Check(E.Value = '中文', '字节构造文本'); Check(E.HasRawValue, '字节来源');
+    Check(SameBytes(E.RawValue, Bytes('中文')), '构造器复制指针内容');
+    H.Add(E); H.Add('x', 'second', True); H.Add('X', '', True);
+    Check(H.GetHeaderValues('x', Values) and (Length(Values) = 3), '重复项');
+    Check(Values[2] = '', '空重复项');
+    Check(not H.GetHeaderValues('missing', Values) and (Values = nil), '不存在字段');
+    Other.Assign(H); H.Assign(H);
+    Check((H.Count = 3) and H.Items[0].HasRawValue, '自赋值');
+    F := Other.Items[0]; Check(Pointer(F.RawValue) = Pointer(E.RawValue), 'Assign 共享');
+    N := 0;
+    for F in H do begin if N = 0 then Check(Pointer(F.RawValue) = Pointer(E.RawValue), '枚举共享'); Inc(N); end;
+    E.Name := 'Z'; E.Value := '调用方文本'; H.Items[0] := E;
+    Check((H.Items[0].Value = E.Value) and H.Items[0].HasRawValue, '完整记录不修正');
+    H.Sort; N := 0;
+    while (N < H.Count) and (H.Items[N].Name <> 'Z') do Inc(N);
+    Check(N < H.Count, '排序保留项');
+    Check(SameBytes(H.Items[N].RawValue, E.RawValue), '排序保留 raw');
+    H['z'] := 'new'; Check(not H.Items[N].HasRawValue and (H.Items[N].RawValue = nil), '字符串覆盖失效');
+    H.Remove('x'); Check(H.Count = 1, '删除所有重复'); H.Remove(0); Check(H.Count = 0, '按索引删除');
+    H.Assign(nil); Check(H.Count = 0, '空来源');
+    E := TParamEntry.Create('Empty', nil, 0);
+    Check(E.HasRawValue and (E.Value = '') and (E.RawValue = nil), '字节来源空值');
+    E := TParamEntry.Create('S', ''); Check(not E.HasRawValue, '字符串来源空值');
+    Failed := False; try E := TParamEntry.Create('bad', nil, 1); except on EArgumentException do Failed := True; end;
+    Check(Failed, '构造 nil 非零');
+    Failed := False; try E := TParamEntry.Create('bad', Pointer(B), -1); except on EArgumentException do Failed := True; end;
+    Check(Failed, '构造负长度');
+    Base := H; Base.Add('X: old');
+    Failed := False; try Base.Add('Y: good'#13#10'bad'); except on EConvertError do Failed := True; end;
+    Check(Failed and (H.Count = 1), '基类 Add 失败回滚并抛出');
+    Failed := False; try Other.Free; Other := nil; Other := THttpHeader.Create('bad'); except on EConvertError do Failed := True; end;
+    Check(Failed, '字符串构造失败抛出');
+  finally Other.Free; H.Free; end;
+end;
+
+procedure TestDecode;
+const Bad: array[0..11] of string = ('bad', ': v', 'Bad Name: v', ' X: v',
+  'X : v', 'X: a'#10, 'X: a'#13, 'X: a'#13#13#10, 'X: a'#0,
+  'X: a'#127, 'X: a'#13#10#13#10'Y: b', 'X: a'#13#10' folded');
+var H: THttpHeader; B, Raw: TBytes; S, ExpectedValue, ErrorClass: string;
+    I, C, ConversionErrors: Integer; Failed, Expected: Boolean;
+begin
+  H := THttpHeader.Create;
+  try
+    for I := 0 to 2 do
+    begin
+      S := 'X: '#9'中文'#9' 中 '#9;
+      if I > 0 then S := S + #13#10;
+      if I > 1 then S := S + #13#10;
+      B := Bytes(S); Check(H.Decode(Pointer(B), Length(B)), '字节结束形式');
+      Check(H.Items[0].Value = '中文'#9' 中', '只去首尾 OWS');
+      Check(SameBytes(H.Items[0].RawValue, Bytes('中文'#9' 中')), 'raw 去 OWS');
+      Check(H.Decode(S) and not H.Items[0].HasRawValue, '字符串来源');
+    end;
+    Check(H.Decode('X: "  中文  "') and (H['X'] = '"  中文  "'), '引号内空白');
+    Check(H.Decode('X: '#$3000'中'#$3000) and (H['X'] = #$3000'中'#$3000), 'Unicode 空白保留');
+    for I := Low(Bad) to High(Bad) do
+    begin
+      B := Bytes('Keep: old'); Check(H.Decode(Pointer(B), Length(B)), '准备旧项'); Raw := H.Items[0].RawValue;
+      B := Bytes('Good: yes'#13#10 + Bad[I]);
+      Check(not H.Decode(Pointer(B), Length(B), False), '字节非法行整块失败');
+      Check((H.Count = 1) and (Pointer(H.Items[0].RawValue) = Pointer(Raw)), '字节追加回滚');
+      Check(not H.Decode('Good: yes'#13#10 + Bad[I], False) and (H.Count = 1), '字符串追加回滚');
+      Check(not H.Decode(Pointer(B), Length(B)) and (H.Count = 0), '清空模式失败');
+    end;
+    ConversionErrors := 0;
+    for C := 0 to 255 do
+    begin
+      B := Bytes('X: a'); SetLength(B, Length(B) + 1); B[High(B)] := C;
+      Expected := (C = 9) or ((C >= 32) and (C <> 127));
+      if Expected then
+      begin
+        if (C = 9) or (C = 32) then Raw := Bytes('a') else begin SetLength(Raw, 2); Raw[0] := 97; Raw[1] := C; end;
+        ErrorClass := '';
+        try ExpectedValue := TUtils.GetString(Raw);
+        except on E: Exception do ErrorClass := E.ClassName; end;
+        if ErrorClass <> '' then
+        begin
+          // GetString 的默认编码回退依赖 RTL/平台；既有转换异常也必须保持。
+          Inc(ConversionErrors); Failed := False;
+          try H.Decode(Pointer(B), Length(B));
+          except on E: Exception do Failed := E.ClassName = ErrorClass; end;
+          Check(Failed and (H.Count = 0), '复用 GetString 异常并回滚');
+        end
+        else begin
+          Check(H.Decode(Pointer(B), Length(B)), '逐字节语法 ' + IntToStr(C));
+          Check(SameBytes(H.Items[0].RawValue, Raw), '逐字节 raw');
+          Check(H.Items[0].Value = ExpectedValue, '复用 GetString 语义');
+        end;
+      end
+      else Check(not H.Decode(Pointer(B), Length(B)), '拒绝控制字节 ' + IntToStr(C));
+    end;
+    Writeln('GETSTRING_CONVERSION_ERRORS ', ConversionErrors);
+    B := [$58, $3A, $20, $EF, $BB, $BF, $E4, $B8, $AD];
+    Check(H.Decode(Pointer(B), Length(B)) and (H['X'] = '中'), '值内 UTF8 BOM');
+    Check(Length(H.Items[0].RawValue) = 6, 'raw 不剥离 BOM');
+    B := Bytes('X: exact'); SetLength(B, Length(B) + 1); B[High(B)] := 0;
+    Check(H.Decode(Pointer(B), Length(B) - 1), '按显式长度解析');
+    Failed := False; try H.Decode(nil, 1); except on EArgumentException do Failed := True; end;
+    Check(Failed and (H['X'] = 'exact'), '参数错误不修改');
+    Failed := False; try H.Decode(Pointer(B), -1); except on EArgumentException do Failed := True; end;
+    Check(Failed and (H.Count = 1), '负长度不修改');
+    Check(H.Decode(nil, 0, False) and (H.Count = 1), '零字节追加');
+    Check(H.Decode(Pointer(1), 0) and (H.Count = 0), '零长度不解引用');
+    Check(H.Decode('') and H.Decode(#13#10), '空集合有效');
+  finally H.Free; end;
+end;
+
+procedure TestEncode;
+const Bad: array[0..8] of string = (#13, #10, #0, #127, #$D800, #$DC00,
+  #$D800#$D800, #$DC00#$D800, #$D800'a');
+var H: THttpHeader; I: Integer; Failed: Boolean; S: string; B: TBytes;
+begin
+  H := THttpHeader.Create;
+  try
+    B := Bytes('X: old'); Check(H.Decode(Pointer(B), Length(B)), '原始项');
+    H['X'] := '中文'#$D83D#$DE00#$FFFD;
+    S := H.Encode; Check(S = 'X: 中文'#$D83D#$DE00#$FFFD#13#10#13#10, '按当前字符串编码');
+    for I := Low(Bad) to High(Bad) do
+    begin
+      H['X'] := Bad[I]; Failed := False;
+      try S := H.Encode; except on EConvertError do Failed := True; end;
+      Check(Failed and (H.Count = 1) and (H['X'] = Bad[I]), '非法输出不改容器');
+    end;
+    H.Clear; H.Add('bad name', 'v'); Failed := False;
+    try S := H.Encode; except on EConvertError do Failed := True; end;
+    Check(Failed and (H.Count = 1), '非法名称抛出');
+  finally H.Free; end;
+end;
+
+procedure TestRequest;
+const OldIID: TGUID = '{B26B7E7B-6B24-4D86-AB58-EBC20722CFDD}';
+var F: TFixture; B, Snapshot, Copy1: TBytes; Intf: IInterface; Req: ICrossHttpRequest;
+begin
+  F := TFixture.Create;
+  try
+    B := Bytes('GET /中文/%252F?q=%26%3D&raw=中文&plus=a+b&bad=%XY HTTP/1.1'#13#10'Host: localhost'#13#10'X: 中文'#13#10#13#10);
+    Check(TRequestAccess(F.Request as TCrossHttpRequest).ParseHeader(Pointer(B), Length(B)), '请求解析');
+    Check(F.Request.Path = '/中文/%2F', 'path 只解码一次');
+    Check((F.Request.Query['q'] = '&=') and (F.Request.Query['raw'] = '中文')
+      and (F.Request.Query['plus'] = 'a b') and (F.Request.Query['bad'] = '%XY'), 'query 边界和既有规则');
+    Check(Pos('%252F', F.Request.RequestCmdLine) > 0, '命令行保留百分号');
+    Snapshot := Copy(B); Copy1 := F.Request.RawRequestHeader; Copy1[0] := 0; B[0] := 0;
+    F.Request.Header['X'] := 'changed';
+    Check(SameBytes(F.Request.RawRequestHeader, Snapshot), '快照独立于 getter/源缓冲/字段修改');
+    Check(Supports(F.Request, ICrossHttpRequest, Req), '新 GUID');
+    Check(not Supports(F.Request, OldIID, Intf), '旧 GUID 不支持'); Req := nil;
+    B := Bytes('GET / HTTP/1.1'#13#10'bad'#13#10#13#10);
+    Check(not TRequestAccess(F.Request as TCrossHttpRequest).ParseHeader(Pointer(B), Length(B)), '请求拒绝非法字段');
+  finally F.Free; end;
+end;
+
+procedure TestMultipart;
+var M: THttpMultiPartFormData; B, Actual: TBytes; I, N, Used, Chunk: Integer;
+    R: TFormDataDecodeResult; FilePath: string;
+begin
+  for N := 1 to 3 do
+  begin
+    M := THttpMultiPartFormData.Create;
+    try
+      M.InitWithBoundary('test'); M.StoragePath := ExtractFilePath(ParamStr(0));
+      B := Bytes('--test'#13#10'Content-Disposition: form-data; name="中文"; filename="中文.txt"'#13#10'Content-Type: text/plain'#13#10#13#10'abc'#13#10'--test--'#13#10);
+      R := frContinue; I := 0;
+      while I < Length(B) do
+      begin
+        Chunk := Length(B) - I;
+        if (N < 3) and (Chunk > N) then Chunk := N;
+        R := M.Decode(@B[I], Chunk, Used);
+        Check((R <> frFailed) and (Used = Chunk), 'multipart 分块消费');
+        Inc(I, Used);
+      end;
+      Check((R = frComplete) and (M.Count = 1) and (M.Items[0].Name = '中文')
+        and (M.Items[0].FileName = '中文.txt'), 'multipart 文件名 UTF8');
+      Check(M.Items[0].AsString = 'abc', 'multipart 内容');
+    finally M.Free; end;
+  end;
+  M := THttpMultiPartFormData.Create;
+  try
+    M.InitWithBoundary('test'); M.StoragePath := ExtractFilePath(ParamStr(0));
+    B := Bytes('--test'#13#10'Content-Disposition: form-data; name="x"'#13#10'bad'#13#10#13#10'a'#13#10'--test--'#13#10);
+    Check(M.Decode(Pointer(B), Length(B)) = frFailed, 'multipart 整块拒绝非法头');
+    Check(M.Count = 0, '失败字段未加入');
+  finally M.Free; end;
+  M := THttpMultiPartFormData.Create; FilePath := '';
+  try
+    M.InitWithBoundary('test'); M.StoragePath := ExtractFilePath(ParamStr(0));
+    B := Bytes('--test'#13#10'Content-Disposition: form-data; name="x"; filename="x.bin"'#13#10'Content-Type: application/octet-stream'#13#10#13#10);
+    I := Length(B); SetLength(B, I + 5);
+    B[I] := 0; B[I+1] := $80; B[I+2] := $FF; B[I+3] := 13; B[I+4] := 10;
+    Actual := Bytes(#13#10'--test'#13#10'Content-Disposition: form-data; name="bad"'#13#10'Bad Name: x'#13#10#13#10);
+    N := Length(B); SetLength(B, N + Length(Actual)); Move(Actual[0], B[N], Length(Actual));
+    Check(M.Decode(Pointer(B), Length(B)) = frFailed, '后续 part 非法头');
+    Check(M.Count = 1, '已有 part 仍由表单持有');
+    FilePath := M.Items[0].FilePath;
+    SetLength(Actual, 5); M.Items[0].Value.Position := 0; M.Items[0].Value.ReadBuffer(Actual[0], 5);
+    Check((Actual[0] = 0) and (Actual[1] = $80) and (Actual[2] = $FF)
+      and (Actual[3] = 13) and (Actual[4] = 10), '文件正文不参与字符转换');
+  finally M.Free; end;
+  Check((FilePath <> '') and not FileExists(FilePath), '失败释放后清理已生成文件');
+end;
+
+procedure TestServerOutput(const Kind: Integer);
+var F: TFixture; Calls: Integer; Success: Boolean; Held: ICrossHttpRequest; Snapshot: TBytes;
+begin
+  F := TFixture.Create; Calls := 0; Success := True;
+  try
+    F.Server.Get('/test', TCrossHttpRouterProc(procedure(const R: ICrossHttpRequest;
+      const S: ICrossHttpResponse; var Handled: Boolean)
+      begin
+        Handled := True; Held := R; Snapshot := R.RawRequestHeader;
+        S.Header['X-Text'] := '中文'#$D83D#$DE00;
+        case Kind of
+          1: S.Header['X-Text'] := #13#10;
+          2: S.Header['X-Text'] := #$D800;
+          3: S.StatusText := #$DC00;
+          4: S.Cookies.Add(TResponseCookie.Create('x', #13#10));
+        end;
+        S.SendNoCompress('body', procedure(const C: ICrossConnection; const OK: Boolean)
+          begin Inc(Calls); Success := OK; end);
+      end));
+    F.ConnectionObj.Feed('GET /test HTTP/1.1'#13#10'Host: localhost'#13#10#13#10);
+    Check((Calls = 1) and (Success = (Kind = 0)), '服务端发送回调');
+    if Kind = 0 then
+    begin
+      Check(Pos(Wire('X-Text: 中文'#$D83D#$DE00#13#10), F.ConnectionObj.Sent) > 0, '服务端线上 UTF8');
+      Check(Pos(AnsiString('Content-Length: 4'), F.ConnectionObj.Sent) > 0, '正文长度');
+      F.ConnectionObj.Feed('GET /next HTTP/1.1'#13#10'Host: localhost'#13#10#13#10);
+      Check(SameBytes(Held.RawRequestHeader, Snapshot), '后续请求不污染快照');
+    end else Check(F.ConnectionObj.Writes = 0, '失败前没有发送任何字节');
+    Held := nil;
+  finally F.Free; end;
+end;
+
+procedure TestControlHeaders;
+const
+  Names: array[0..11] of string = ('Content-Length', 'Transfer-Encoding',
+    'Content-Encoding', 'Accept-Encoding', 'Connection', 'Upgrade', 'Expect',
+    'Sec-WebSocket-Key', 'Sec-WebSocket-Version', 'Sec-WebSocket-Accept',
+    'Sec-WebSocket-Protocol', 'Sec-WebSocket-Extensions');
+var H: THttpHeader; B, Raw: TBytes; Name, Prefix: string;
+begin
+  H := THttpHeader.Create;
+  try
+    for Name in Names do
+    begin
+      B := Bytes(Name + ': '#9'abc '#9#13#10);
+      Check(H.Decode(Pointer(B), Length(B)), '控制字段 ASCII/OWS');
+      Check(SameBytes(H.Items[0].RawValue, Bytes('abc')), 'ASCII raw 保持');
+      Raw := H.Items[0].RawValue;
+      B := Bytes(Name + ': abc'#13#10 + Name + ': '#$FEFF'abc'#13#10);
+      Check(not H.Decode(Pointer(B), Length(B), False), '控制字段拒绝 BOM: ' + Name);
+      Check((H.Count = 1) and (Pointer(H.Items[0].RawValue) = Pointer(Raw)), '所有重复项校验并回滚');
+      B := Bytes(Name + ': '); SetLength(B, Length(B) + 1); B[High(B)] := $80;
+      Check(not H.Decode(Pointer(B), Length(B)) and (H.Count = 0), '控制字段拒绝高位原始字节');
+    end;
+    for Name in ['Expect', 'Transfer-Encoding'] do
+    begin
+      if Name = 'Expect' then Prefix := 'x=' else Prefix := 'custom; p=';
+      B := Bytes(Name + ': ' + Prefix + '"中文"');
+      Check(H.Decode(Pointer(B), Length(B)), '合法引号参数高位字节');
+      Check(H[Name] = Prefix + '"中文"', '引号参数仍按 GetString 转换');
+      B := Bytes(Name + ': ' + Prefix + '"a\"中文"');
+      Check(H.Decode(Pointer(B), Length(B)), '转义引号不终止参数');
+      B := Bytes(Name + ': ' + Prefix + '"中文"; ' + #$FEFF + 'x');
+      Check(not H.Decode(Pointer(B), Length(B)), '引号外高位字节拒绝');
+      B := Bytes(Name + ': ' + Prefix + '"中文');
+      Check(not H.Decode(Pointer(B), Length(B)), '未闭合引号拒绝');
+    end;
+    B := Bytes('X-Test: '#$FEFF'中文'#13#10'Referer: /中文'#13#10#13#10);
+    Check(H.Decode(Pointer(B), Length(B)) and (H['X-Test'] = '中文'), '普通字段保持 GetString/BOM');
+    Check(SameBytes(H.Items[0].RawValue, Bytes(#$FEFF'中文')), '普通字段 raw 不变');
+  finally H.Free; end;
+end;
+
+function FileCount(const APath: string): Integer;
+var Search: TSearchRec;
+begin
+  Result := 0;
+  if FindFirst(IncludeTrailingPathDelimiter(APath) + '*', faAnyFile, Search) <> 0 then Exit;
+  try
+    repeat
+      if (Search.Name <> '.') and (Search.Name <> '..') then Inc(Result);
+    until FindNext(Search) <> 0;
+  finally FindClose(Search); end;
+end;
+
+procedure TestMultipartRequest(const ACase: Integer);
+var F: TFixture; Calls: Integer; ValidForm: Boolean; Body, Prefix, Tail, Dir: string;
+begin
+  Dir := ExtractFilePath(ParamStr(0)) + 'multipart-reject-' + IntToStr(ACase);
+  Check(not DirectoryExists(Dir) and CreateDir(Dir), '创建隔离上传目录');
+  Calls := 0; ValidForm := False; F := TFixture.Create;
+  try
+    F.Server.StoragePath := Dir;
+    F.Server.AutoDeleteFiles := True;
+    F.Server.Post('/upload', TCrossHttpRouterProc(procedure(const R: ICrossHttpRequest;
+      const S: ICrossHttpResponse; var Handled: Boolean)
+      var M: THttpMultiPartFormData;
+      begin
+        Handled := True; Inc(Calls); M := R.Body as THttpMultiPartFormData;
+        ValidForm := (M.Count = 2) and (M.Items[0].FileName = '中文.bin')
+          and (M.Items[0].AsString = 'abc') and (M.Items[1].AsString = 'two');
+        S.SendNoCompress('ok');
+      end));
+    Body := '--b'#13#10'Content-Disposition: form-data; name="file"; filename="中文.bin"'#13#10;
+    if ACase = 1 then Body := Body + 'Bad Name: x'#13#10;
+    Body := Body + 'Content-Type: application/octet-stream'#13#10#13#10'abc'#13#10'--b'#13#10;
+    Tail := 'Content-Disposition: form-data; name="text"'#13#10;
+    if ACase >= 2 then Tail := Tail + 'Bad Name: x'#13#10;
+    Tail := Tail + #13#10'two'#13#10'--b--'#13#10;
+    Prefix := 'POST /upload HTTP/1.1'#13#10'Host: localhost'#13#10
+      + 'Content-Type: multipart/form-data; boundary=b'#13#10
+      + 'Content-Length: ' + IntToStr(Length(Bytes(Body + Tail))) + #13#10#13#10;
+    if ACase = 3 then
+    begin
+      F.ConnectionObj.Feed(Wire(Prefix + Body));
+      Check((Calls = 0) and (FileCount(Dir) = 1), '失败前已创建文件，尚未发布请求');
+      F.ConnectionObj.Feed(Wire(Tail));
+    end
+    else F.ConnectionObj.Feed(Wire(Prefix + Body + Tail));
+    if ACase = 0 then
+      Check((Calls = 1) and ValidForm and (Pos(AnsiString('200 OK'), F.ConnectionObj.Sent) > 0), '合法表单完整发布')
+    else begin
+      Check((Calls = 0) and (Pos(AnsiString('400 Bad Request'), F.ConnectionObj.Sent) > 0), '非法表单必须失败，不发布部分数据');
+      Check(F.ConnectionObj.ConnectStatus in [csDisconnected, csClosed], '非法表单断开连接');
+    end;
+  finally F.Free; end;
+  Check(FileCount(Dir) = 0, '关闭后清理上传文件');
+  Check(RemoveDir(Dir), '清理隔离上传目录');
+end;
+
+procedure Server;
+var S: ICrossHttpServer; Ready: TEvent; Port: Word; Calls: Integer; Line: string;
+begin
+  Calls := 0; Port := 0; Ready := TEvent.Create(nil, True, False, '');
+  try
+    S := TCrossHttpServer.Create(1, False);
+    S.Addr := '127.0.0.1'; S.Port := 0;
+    S.StoragePath := ParamStr(2); S.AutoDeleteFiles := True;
+    S.Post('/test', TCrossHttpRouterProc(procedure(const R: ICrossHttpRequest;
+      const Response: ICrossHttpResponse; var Handled: Boolean)
+      var M: THttpMultiPartFormData; B: TBytes;
+      begin
+        Handled := True; Inc(Calls);
+        if R.Body is THttpMultiPartFormData then
+        begin
+          M := R.Body as THttpMultiPartFormData;
+          Check((M.Count = 2) and (M.Items[0].AsString = 'abc')
+            and (M.Items[1].AsString = 'two'), 'TCP 表单内容');
+        end
+        else begin
+          Check((R.RawBody <> nil) and (R.RawBody.Size = 3), 'TCP 正文定界');
+          SetLength(B, 3); R.RawBody.Position := 0; R.RawBody.ReadBuffer(B[0], 3);
+          Check(SameBytes(B, Bytes('abc')), 'TCP 正文内容');
+          if R.Header.ExistsParam('X-Text') then
+            Check(R.Header['X-Text'] = '中文', 'TCP 普通字段 GetString');
+        end;
+        Response.SendNoCompress('ok');
+      end));
+    S.Start(procedure(const L: ICrossListen; const OK: Boolean)
+      begin if OK then Port := L.LocalPort; Ready.SetEvent; end);
+    Check((Ready.WaitFor(5000) = wrSignaled) and (Port <> 0), '测试服务监听');
+    Writeln('READY ', Port); Flush(Output); Readln(Line);
+    S.Stop; S := nil;
+    Writeln('REQUESTS ', Calls); Flush(Output);
+  finally S := nil; Ready.Free; end;
+end;
+
+procedure Client;
+var C: ICrossHttpClient; Done: TEvent; H: THttpHeader; Calls: Integer; ErrorText, Kind, Method, TextValue: string; AcceptOpaque: Boolean;
+begin
+  Kind := ParamStr(3); Calls := 0; ErrorText := ''; AcceptOpaque := True;
+  try TextValue := TUtils.GetString(TBytes.Create($FE));
+  except on E: Exception do AcceptOpaque := False; end;
+  Done := TEvent.Create(nil, True, False, ''); H := THttpHeader.Create;
+  try
+    C := TCrossHttpClient.Create;
+    H['X-Text'] := '中文'#$D83D#$DE00;
+    if Kind = 'invalid-field' then H['X-Text'] := #13#10;
+    if Kind = 'invalid-utf16' then H['X-Text'] := #$D800;
+    Method := 'GET';
+    if Kind = 'head-metadata' then Method := 'HEAD';
+    if Kind = 'invalid-method' then Method := 'G'#$DC00;
+    C.DoRequest(Method, ParamStr(2), H, Pointer(nil), 0, nil,
+      procedure(const R: ICrossHttpClientRequest)
+      begin
+        if Kind = 'invalid-query' then R.Query['q'] := #$D800;
+        if Kind = 'invalid-query-name' then R.Query[#$DC00] := 'q';
+      end,
+      procedure(const R: ICrossHttpClientResponse)
+      begin
+        Inc(Calls);
+        try
+          if (Kind = 'valid') or ((Kind = 'opaque-response') and AcceptOpaque) then
+          begin
+            Check((R.StatusCode = 200) and (R.StatusText = '中文'), '客户端状态行 UTF8');
+            if Kind = 'valid' then
+              Check((R.Header['X-Text'] = '中文') and R.Header.Items[0].HasRawValue, '客户端字段 UTF8/raw')
+            else begin
+              Check(SameBytes(R.Header.Items[0].RawValue, TBytes.Create($FE)), '客户端保留非 UTF8 原值');
+              Check((R.Content <> nil) and (R.Content.Size = 3), '高位值不破坏正文定界');
+            end;
+            Check(R.Cookies.Count = 2, '重复 Set-Cookie');
+          end
+          else if Kind = 'head-metadata' then
+            Check((R.StatusCode = 200) and (R.Header['Transfer-Encoding'] = 'custom; p="中文"')
+              and ((R.Content = nil) or (R.Content.Size = 0)), 'HEAD 高位引号 TE 元数据')
+          else if Kind = 'empty-response' then
+            Check((R.StatusCode = 204) and (R.StatusText = '') and (R.Header.Count = 0), '空原因和空头')
+          else Check(R.StatusCode <> 200, '客户端失败回调');
+        except on E: Exception do ErrorText := E.Message; end;
+        Done.SetEvent;
+      end);
+    Check(Done.WaitFor(5000) = wrSignaled, '客户端回调超时');
+    C.CancelAll; C := nil;
+    Check(Calls = 1, '客户端只回调一次'); Check(ErrorText = '', ErrorText);
+  finally C := nil; H.Free; Done.Free; end;
+end;
+
+var I: Integer;
+begin
+  try
+    if ParamStr(1) = 'server' then Server
+    else if ParamStr(1) = 'client' then Client
+    else begin
+      Writeln('entries'); TestEntries; Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
+      Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
+      Writeln('control-headers'); TestControlHeaders;
+      Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
+      Writeln('server-output');
+      for I := 0 to 4 do TestServerOutput(I);
+    end;
+    Writeln('PASS checks=', Checks);
+  except on E: Exception do begin Writeln('FAIL ', E.ClassName, ': ', E.Message); Halt(1); end; end;
+end.

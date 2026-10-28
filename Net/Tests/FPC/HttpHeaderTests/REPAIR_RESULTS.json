@@ -1,0 +1,261 @@
+{
+  "date": "2026-10-28",
+  "head": "48159035aac1285b37af4ecb82c166438e827920",
+  "status": "passed",
+  "source_sha256": {
+    "Net/Net.CrossHttpParams.pas": "7340960707f1da81c7dd8c8456e5eeabcb829a5decdb98a559de5ef35a2e20b2",
+    "Net/Net.CrossHttpServer.pas": "973c53f154081826b60f6d83e58ffb674aab594327164ccd738d1b2e6c4ba4cc",
+    "Net/Net.CrossHttpClient.pas": "a6249363ed0d490151602e801fb1d9b575b521a7c4308e93c4630fdd3e937ee6",
+    "Net/Net.CrossHttpUtils.pas": "fbbe441a0ed7c8f4f90733ef596b5ce2a5b4a9605806a27bd9681524dc7fd0c5",
+    "Net/Net.CrossWebSocketClient.pas": "096b47f016c05bfa4a70a6d9224eee543625d891f35abf8c5616656e1a3c424f",
+    "Utils/Utils.Utils.pas": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+    "Net/Tests/FPC/HttpHeaderTests/HttpHeaderTests.lpr": "5be498719e3e526b7ce66490d6d9630aded01306cf66ae4a8f56445c13ae8d8d",
+    "Net/Tests/FPC/HttpHeaderTests/run_tests.py": "6ae75f00a69795ea00039b15882e36864171fbebe3d5a8dd7be613e3375e3ae6",
+    "Net/Tests/FPC/WebSocketFrameTests/WebSocketSenderTests.pas": "a4e5e49e0517d3aa3d59c07eb1769dbbcaaaef021f363af62763a76046a62e6d",
+    "Net/Tests/FPC/WebSocketFrameTests/run_handshake_tests.py": "3324dfd25e578862274065afe1a5ff94d9c22463d654a52a832ff7f6dc59d3b8",
+    "Net/Tests/FPC/HttpHotPathTests/HttpTestSupport.inc": "841c832eec4e018e07161ed43307cdd60d685297ca4f4b1446c2759899da2951"
+  },
+  "header_tests": [
+    {
+      "target": "fpc64",
+      "configuration": "repair-final-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/fpc64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/fpc64/build.json"
+    },
+    {
+      "target": "win32",
+      "configuration": "repair-final-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/win32/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/win32/build.json"
+    },
+    {
+      "target": "win64",
+      "configuration": "repair-final-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/win64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-final-v3-20261028/win64/build.json"
+    },
+    {
+      "target": "fpc64",
+      "configuration": "repair-checked-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/fpc64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/fpc64/build.json"
+    },
+    {
+      "target": "win32",
+      "configuration": "repair-checked-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/win32/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/win32/build.json"
+    },
+    {
+      "target": "win64",
+      "configuration": "repair-checked-v3-20261028",
+      "component_output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\ncontrol-headers\r\nmultipart-request\r\nserver-output\r\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/win64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-checked-v3-20261028/win64/build.json"
+    },
+    {
+      "target": "delphi-linux64",
+      "configuration": "repair-linux-v3-20261028",
+      "component_output": "entries\ndecode\nGETSTRING_CONVERSION_ERRORS 128\nencode\nrequest\nmultipart\ncontrol-headers\nmultipart-request\nserver-output\nPASS checks=882",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-linux-v3-20261028/delphi-linux64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-linux-v3-20261028/delphi-linux64/build.json"
+    },
+    {
+      "target": "fpc-linux64",
+      "configuration": "repair-linux-v3-20261028",
+      "component_output": "entries\ndecode\nGETSTRING_CONVERSION_ERRORS 0\nencode\nrequest\nmultipart\ncontrol-headers\nmultipart-request\nserver-output\nPASS checks=1138",
+      "tcp_cases": 22,
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/repair-linux-v3-20261028/fpc-linux64/results.json",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-linux-v3-20261028/fpc-linux64/build.json"
+    }
+  ],
+  "websocket_handshake": [
+    {
+      "target": "fpc64",
+      "passed": 55,
+      "total": 55,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-v3-20261028/fpc64/results.json"
+    },
+    {
+      "target": "win32",
+      "passed": 55,
+      "total": 55,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-v3-20261028/win32/results.json"
+    },
+    {
+      "target": "win64",
+      "passed": 55,
+      "total": 55,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-v3-20261028/win64/results.json"
+    },
+    {
+      "target": "delphi-linux64",
+      "passed": 55,
+      "total": 55,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-linux-v3-20261028/delphi-linux64/handshake.json"
+    },
+    {
+      "target": "fpc-linux64",
+      "passed": 55,
+      "total": 55,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-linux-v3-20261028/fpc-linux64/handshake.json"
+    }
+  ],
+  "websocket_sender": [
+    {
+      "target": "fpc64",
+      "passed": 23,
+      "total": 23,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/sender-header-repair-20261028/fpc64/results.json"
+    },
+    {
+      "target": "win32",
+      "passed": 23,
+      "total": 23,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/sender-header-repair-20261028/win32/results.json"
+    },
+    {
+      "target": "win64",
+      "passed": 23,
+      "total": 23,
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/sender-header-repair-20261028/win64/results.json"
+    }
+  ],
+  "websocket_components": [
+    {
+      "target": "win64",
+      "component_log": "Net/Tests/FPC/WebSocketFrameTests/bin/tests-win64.log",
+      "loopback_log": "Net/Tests/FPC/WebSocketFrameTests/bin/loopback-win64.log",
+      "frame_split_combinations": 11056,
+      "tcp_scenarios": 11
+    },
+    {
+      "target": "win32",
+      "component_log": "Net/Tests/FPC/WebSocketFrameTests/bin/tests-win32.log",
+      "loopback_log": "Net/Tests/FPC/WebSocketFrameTests/bin/loopback-win32.log",
+      "frame_split_combinations": 11056,
+      "tcp_scenarios": 11
+    },
+    {
+      "target": "fpc64",
+      "component_log": "Net/Tests/FPC/WebSocketFrameTests/bin/tests-fpc64.log",
+      "loopback_log": "Net/Tests/FPC/WebSocketFrameTests/bin/loopback-fpc64.log",
+      "frame_split_combinations": 11056,
+      "tcp_scenarios": 11
+    },
+    {
+      "target": "delphi-linux64",
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-linux-v3-20261028/delphi-linux64/results.json",
+      "frame_split_combinations": 11056,
+      "tcp_scenarios": 11
+    },
+    {
+      "target": "fpc-linux64",
+      "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-repair-linux-v3-20261028/fpc-linux64/results.json",
+      "frame_split_combinations": 11056,
+      "tcp_scenarios": 11
+    }
+  ],
+  "http_failure": [
+    {
+      "target": "fpc64",
+      "passed": 143,
+      "total": 143,
+      "results": "Net/Tests/FPC/HttpFailureTests/bin/header-repair-final-20261028/fpc64/results.json"
+    },
+    {
+      "target": "win32",
+      "passed": 143,
+      "total": 143,
+      "results": "Net/Tests/FPC/HttpFailureTests/bin/header-repair-final-20261028/win32/results.json"
+    },
+    {
+      "target": "win64",
+      "passed": 143,
+      "total": 143,
+      "results": "Net/Tests/FPC/HttpFailureTests/bin/header-repair-final-20261028/win64/results.json"
+    }
+  ],
+  "head_and_response": [
+    {
+      "target": "delphi-win32",
+      "response_cases": 22,
+      "interim_cases": 9,
+      "head_cases": 14,
+      "directory": "Net/Tests/FPC/HttpHeadTests/bin/header-repair-final-20261028/delphi-win32"
+    },
+    {
+      "target": "delphi-win64",
+      "response_cases": 22,
+      "interim_cases": 9,
+      "head_cases": 14,
+      "directory": "Net/Tests/FPC/HttpHeadTests/bin/header-repair-final-20261028/delphi-win64"
+    },
+    {
+      "target": "fpc-win64",
+      "response_cases": 22,
+      "interim_cases": 9,
+      "head_cases": 14,
+      "directory": "Net/Tests/FPC/HttpHeadTests/bin/header-repair-final-20261028/fpc-win64"
+    }
+  ],
+  "production_builds": [
+    {
+      "project": "HttpClient",
+      "platform": "Win64",
+      "configuration": "Release",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-production-v2-20261028/HttpClient/build.json",
+      "executables": {
+        "HttpClient.exe": "3305517467c8a59b426d01e69b812912134366bf3532c229dd01199fbe212d7a"
+      }
+    },
+    {
+      "project": "HttpServer",
+      "platform": "Win64",
+      "configuration": "Release",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-production-v2-20261028/HttpServer/build.json",
+      "executables": {
+        "HttpServer.exe": "77c73d5159c7de504d63b3b30dca590e38eb9ea414b642c519cd3cd963ba93cc"
+      }
+    },
+    {
+      "project": "WebSocketServer",
+      "platform": "Win64",
+      "configuration": "Release",
+      "build": "Net/Tests/FPC/HttpHeaderTests/bin/repair-production-v2-20261028/WebSocketServer/build.json",
+      "executables": {
+        "WebSocketServer.exe": "685dd19f550ab64dd7398e1f7adcf8171590c33e565c84332ada6dd7290872d4"
+      }
+    }
+  ],
+  "issue199": {
+    "passed": 12,
+    "total": 12,
+    "results": "Net/Tests/FPC/Issue199Tests/bin/header-repair-final-20261028/results.json"
+  },
+  "red_evidence": [
+    "Net/Tests/FPC/WebSocketFrameTests/bin/header-handshake-20261027/win64/bom-red-20261028.json",
+    "Net/Tests/FPC/HttpHeaderTests/bin/repair-red-20261028/win64/component.log",
+    "Net/Tests/FPC/HttpHeaderTests/bin/repair-quoted-red-20261028/win64/component.log",
+    "Net/Tests/FPC/WebSocketFrameTests/bin/header-baseline-20261027/run.log"
+  ],
+  "notes": [
+    "Record layout and GetString decoding remain unchanged.",
+    "Expect and Transfer-Encoding quoted-string obs-text is retained.",
+    "Multipart cleanup follows AutoDeleteFiles; cleanup regressions enable it explicitly.",
+    "Delphi Linux GetString behavior for non-UTF8 values is preserved.",
+    "No macOS/ARM/full TLS matrix or throughput benchmarks."
+  ]
+}

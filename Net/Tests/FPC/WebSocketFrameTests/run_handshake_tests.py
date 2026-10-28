@@ -92,6 +92,10 @@ def request(kind):
         'version-12': ('Sec-WebSocket-Version', '12'),
         'tokens': ('Connection', 'keep-alive, Upgrade'),
         'case': ('Upgrade', 'WebSocket')}
+    if kind.startswith('bom-'):
+        key = {'bom-key': 'Sec-WebSocket-Key', 'bom-version': 'Sec-WebSocket-Version',
+               'bom-upgrade': 'Upgrade', 'bom-connection': 'Connection'}[kind]
+        headers = [(n, '\ufeff' + v if n == key else v) for n, v in headers]
     if kind in replacements:
         key, value = replacements[kind]
         headers = [(n, value if n == key else v) for n, v in headers]
@@ -112,7 +116,7 @@ def request(kind):
 SERVER_CASES = ['valid', 'tokens', 'case', 'repeated-connection', 'extension-offer',
                 'post', 'head', 'http10', 'fake-upgrade', 'fake-connection', 'missing-key',
                 'bad-key', 'short-key', 'long-key', 'noncanonical-key', 'duplicate-key',
-                'missing-version', 'version-12', 'duplicate-version', 'missing-host', 'duplicate-host', 'unicode-upgrade']
+                'missing-version', 'version-12', 'duplicate-version', 'missing-host', 'duplicate-host', 'unicode-upgrade', 'bom-key', 'bom-version', 'bom-upgrade', 'bom-connection']
 
 
 def run_server(executable):
@@ -161,12 +165,12 @@ CLIENT_CASES = ['valid', 'case', 'tokens', 'repeated-connection', 'protocol',
                 'status-200', 'http10', 'missing-upgrade', 'fake-upgrade', 'missing-connection',
                 'fake-connection', 'bad-accept', 'duplicate-accept', 'unsolicited-protocol',
                 'wrong-protocol-case', 'duplicate-protocol', 'extension', 'offered-extension',
-                'changed-key', 'invalid-protocol', 'response-error', 'changed-key-ows', 'filtered-protocol', 'unicode-upgrade']
+                'changed-key', 'invalid-protocol', 'response-error', 'changed-key-ows', 'filtered-protocol', 'unicode-upgrade', 'bom-accept', 'bom-protocol', 'bom-upgrade', 'bom-connection']
 
 
 def run_client(executable, case):
     valid = case in ('valid', 'case', 'tokens', 'repeated-connection', 'protocol', 'changed-key', 'changed-key-ows')
-    offered = 'protocol' if case in ('protocol', 'wrong-protocol-case', 'duplicate-protocol') else (
+    offered = 'protocol' if case in ('protocol', 'wrong-protocol-case', 'duplicate-protocol', 'bom-protocol') else (
         'extension' if case == 'offered-extension' else '')
     offered = {'changed-key': 'key', 'invalid-protocol': 'invalid-protocol',
                'response-error': 'response-error', 'changed-key-ows': 'key-ows',
@@ -181,38 +185,46 @@ def run_client(executable, case):
             s, _ = listener.accept()
             with s:
                 s.settimeout(2)
-                _, req = read_headers(s)
                 if case == 'filtered-protocol':
-                    assert 'sec-websocket-protocol' not in req, req
-                expected_accept = accept(req['sec-websocket-key'][0])
-                headers = [('Upgrade', 'websocket'), ('Connection', 'Upgrade'),
-                           ('Sec-WebSocket-Accept', expected_accept)]
-                replacements = {'case': ('Upgrade', 'WebSocket'), 'tokens': ('Connection', 'keep-alive, upgrade'),
-                                'fake-upgrade': ('Upgrade', 'xwebsocket'), 'fake-connection': ('Connection', 'XUpgrade'),
-                                'unicode-upgrade': ('Upgrade', 'webſocket'),
-                                'bad-accept': ('Sec-WebSocket-Accept', 'invalid')}
-                if case in replacements:
-                    key, value = replacements[case]
-                    headers = [(n, value if n == key else v) for n, v in headers]
-                if case.startswith('missing-'):
-                    headers = [(n, v) for n, v in headers if n.lower() != case[len('missing-'):]]
-                if case == 'repeated-connection':
-                    headers = [(n, 'keep-alive' if n == 'Connection' else v) for n, v in headers]
-                    headers.append(('Connection', 'Upgrade'))
-                if case == 'duplicate-accept': headers.append(('Sec-WebSocket-Accept', expected_accept))
-                if case in ('protocol', 'unsolicited-protocol', 'wrong-protocol-case', 'duplicate-protocol'):
-                    headers.append(('Sec-WebSocket-Protocol', 'Chat' if case == 'wrong-protocol-case' else 'chat'))
-                if case == 'duplicate-protocol': headers.append(('Sec-WebSocket-Protocol', 'chat'))
-                if case == 'invalid-protocol': headers.append(('Sec-WebSocket-Protocol', 'chat bad'))
-                if case == 'filtered-protocol': headers.append(('Sec-WebSocket-Protocol', 'chat'))
-                if case in ('extension', 'offered-extension'): headers.append(('Sec-WebSocket-Extensions', 'permessage-deflate'))
-                version = 'HTTP/1.0' if case == 'http10' else 'HTTP/1.1'
-                status = '200 OK' if case == 'status-200' else '101 Switching Protocols'
-                if case == 'status-200': headers.append(('Content-Length', '0'))
-                s.sendall((f'{version} {status}\r\n' + ''.join(f'{n}: {v}\r\n' for n, v in headers) + '\r\n').encode())
-                result = process.next()
-                assert result == ('RESULT 1 0' if valid else 'RESULT 0 1'), result
-                if not valid: closed(s)
+                    # Header 含 CRLF 时整次发送失败，不再过滤字段后继续握手。
+                    assert s.recv(1) == b'', '非法 Header 不应发送任何字节'
+                    assert process.next() == 'RESULT 0 1', process.lines
+                else:
+                    _, req = read_headers(s)
+                    expected_accept = accept(req['sec-websocket-key'][0])
+                    headers = [('Upgrade', 'websocket'), ('Connection', 'Upgrade'),
+                               ('Sec-WebSocket-Accept', expected_accept)]
+                    replacements = {'case': ('Upgrade', 'WebSocket'), 'tokens': ('Connection', 'keep-alive, upgrade'),
+                                    'fake-upgrade': ('Upgrade', 'xwebsocket'), 'fake-connection': ('Connection', 'XUpgrade'),
+                                    'unicode-upgrade': ('Upgrade', 'webſocket'),
+                                    'bad-accept': ('Sec-WebSocket-Accept', 'invalid')}
+                    if case.startswith('bom-'):
+                        key = {'bom-accept': 'Sec-WebSocket-Accept', 'bom-upgrade': 'Upgrade', 'bom-connection': 'Connection', 'bom-protocol': 'Sec-WebSocket-Protocol'}[case]
+                        if case == 'bom-protocol':
+                            headers.append((key, '\ufeffchat'))
+                        else:
+                            headers = [(n, '\ufeff' + v if n == key else v) for n, v in headers]
+                    if case in replacements:
+                        key, value = replacements[case]
+                        headers = [(n, value if n == key else v) for n, v in headers]
+                    if case.startswith('missing-'):
+                        headers = [(n, v) for n, v in headers if n.lower() != case[len('missing-'):]]
+                    if case == 'repeated-connection':
+                        headers = [(n, 'keep-alive' if n == 'Connection' else v) for n, v in headers]
+                        headers.append(('Connection', 'Upgrade'))
+                    if case == 'duplicate-accept': headers.append(('Sec-WebSocket-Accept', expected_accept))
+                    if case in ('protocol', 'unsolicited-protocol', 'wrong-protocol-case', 'duplicate-protocol'):
+                        headers.append(('Sec-WebSocket-Protocol', 'Chat' if case == 'wrong-protocol-case' else 'chat'))
+                    if case == 'duplicate-protocol': headers.append(('Sec-WebSocket-Protocol', 'chat'))
+                    if case == 'invalid-protocol': headers.append(('Sec-WebSocket-Protocol', 'chat bad'))
+                    if case in ('extension', 'offered-extension'): headers.append(('Sec-WebSocket-Extensions', 'permessage-deflate'))
+                    version = 'HTTP/1.0' if case == 'http10' else 'HTTP/1.1'
+                    status = '200 OK' if case == 'status-200' else '101 Switching Protocols'
+                    if case == 'status-200': headers.append(('Content-Length', '0'))
+                    s.sendall((f'{version} {status}\r\n' + ''.join(f'{n}: {v}\r\n' for n, v in headers) + '\r\n').encode())
+                    result = process.next()
+                    assert result == ('RESULT 1 0' if valid else 'RESULT 0 1'), result
+                    if not valid: closed(s)
         except Exception as error:
             detail = f'{type(error).__name__}: {error}'
         finally:

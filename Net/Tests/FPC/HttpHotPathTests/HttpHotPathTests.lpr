@@ -83,7 +83,7 @@ begin
 end;
 
 function ReferenceContains(const AHeader: THttpHeader; const AName, AToken: string): Boolean;
-var LHeader: TNameValue; LToken, LValue: string;
+var LHeader: TParamEntry; LToken, LValue: string;
 begin
   if not ReferenceToken(AToken) then Exit(False);
   for LHeader in AHeader do

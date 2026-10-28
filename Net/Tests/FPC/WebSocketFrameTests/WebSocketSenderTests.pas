@@ -4,12 +4,14 @@ interface
 procedure RunWebSocketSenderTests;
 procedure RunWebSocketMessageQueueTest(const AName:string);
 implementation
-uses SysUtils, Classes, SyncObjs, Generics.Collections, Net.SocketAPI, Net.CrossSocket.Base,
+uses SysUtils, Classes, SyncObjs, Generics.Collections, Net.SocketAPI, Net.CrossSocket.Base, Net.CrossSocket,
   Net.CrossWebSocketParser, Net.CrossWebSocketSender
   {$IFNDEF WS_SENDER_ONLY}, Net.CrossWebSocketClient,
   Net.CrossWebSocketServer, Net.CrossSslSocket.OpenSSL{$ENDIF};
 type
   TTestConnection = class(TCrossConnectionBase)
+  private
+    FTestOwner: ICrossSocket;
   protected
     procedure DirectSend(const ABuffer:Pointer; const ACount:Integer;
       const ACallback:TCrossConnectionCallback); override;
@@ -40,8 +42,12 @@ begin
   inherited;
 end;
 constructor TTestConnection.Create;
+var LOwner: TCrossSocket;
 begin
-  inherited Create(nil,INVALID_SOCKET,ctConnect,'',nil);
+  // 基类初始化发送限额需要有效 Owner；接口保持到连接完整析构后释放。
+  LOwner := TCrossSocket.Create(1);
+  FTestOwner := LOwner;
+  inherited Create(LOwner,INVALID_SOCKET,ctConnect,'',nil);
   ConnectStatus:=csConnected;AutoComplete:=True;
   WriteLock:=TCriticalSection.Create;
   Frames:=TList<TBytes>.Create;Pending:=TList<TCrossConnectionCallback>.Create;

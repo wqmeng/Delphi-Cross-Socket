@@ -37,14 +37,19 @@ uses
   Utils.Utils;
 
 type
-  TNameValue = record
+  TParamEntry = record
     Name, Value: string;
-    constructor Create(const AName, AValue: string);
+    // 仅字节来源保留原值；数组按 Delphi/FPC 常规引用语义共享，请视为只读。
+    RawValue: TBytes;
+    HasRawValue: Boolean;
+    constructor Create(const AName, AValue: string); overload;
+    constructor Create(const AName: string; const ARawValue: Pointer;
+      const ARawSize: Integer); overload;
   end;
 
-  INameValueComparer = IComparer<TNameValue>;
-  TNameValueComparison = {$IFDEF DELPHI}TComparison<TNameValue>{$ELSE}TComparisonAnonymousFunc<TNameValue>{$ENDIF};
-  TNameValueComparer = {$IFDEF DELPHI}TDelegatedComparer<TNameValue>{$ELSE}TDelegatedComparerAnonymousFunc<TNameValue>{$ENDIF};
+  IParamEntryComparer = IComparer<TParamEntry>;
+  TParamEntryComparison = {$IFDEF DELPHI}TComparison<TParamEntry>{$ELSE}TComparisonAnonymousFunc<TParamEntry>{$ENDIF};
+  TParamEntryComparer = {$IFDEF DELPHI}TDelegatedComparer<TParamEntry>{$ELSE}TDelegatedComparerAnonymousFunc<TParamEntry>{$ENDIF};
 
   /// <summary>
   ///   参数基础类
@@ -57,19 +62,19 @@ type
       FParams: TBaseParams;
     public
       constructor Create(const AParams: TBaseParams);
-      function GetCurrent: TNameValue; inline;
+      function GetCurrent: TParamEntry; inline;
       function MoveNext: Boolean; inline;
-      property Current: TNameValue read GetCurrent;
+      property Current: TParamEntry read GetCurrent;
     end;
   private
-    FParams: TList<TNameValue>;
+    FParams: TList<TParamEntry>;
 
     function GetParamIndex(const AName: string): Integer;
     function GetParam(const AName: string): string;
     procedure SetParam(const AName, AValue: string);
     function GetCount: Integer;
-    function GetItem(AIndex: Integer): TNameValue;
-    procedure SetItem(AIndex: Integer; const AValue: TNameValue);
+    function GetItem(AIndex: Integer): TParamEntry;
+    procedure SetItem(AIndex: Integer; const AValue: TParamEntry);
   public
     constructor Create; overload; virtual;
     constructor Create(const AEncodedParams: string); overload; virtual;
@@ -88,7 +93,7 @@ type
     /// <summary>
     ///   添加参数
     /// </summary>
-    procedure Add(const AParamValue: TNameValue); overload;
+    procedure Add(const AParamValue: TParamEntry); overload;
 
     /// <summary>
     ///   添加参数
@@ -139,7 +144,7 @@ type
     /// <param name="AComparison">
     ///   自定义比较函数，为nil时按参数名排序
     /// </param>
-    procedure Sort(const AComparison: TNameValueComparison = nil);
+    procedure Sort(const AComparison: TParamEntryComparison = nil);
 
     /// <summary>
     ///   从已编码的字符串中解码
@@ -222,7 +227,7 @@ type
     /// <value>
     ///   参数名值对
     /// </value>
-    property Items[AIndex: Integer]: TNameValue read GetItem write SetItem;
+    property Items[AIndex: Integer]: TParamEntry read GetItem write SetItem;
 
     /// <summary>
     ///   参数个数
@@ -271,7 +276,13 @@ type
   ///   HTTP头类
   /// </summary>
   THttpHeader = class(TBaseParams)
+  private
+    function _Decode(const AData: Pointer; const ASize: Integer;
+      const AClear, ABytes: Boolean): Boolean;
   public
+    // ASize 为字节数；只接收字段集合，不包含请求行/状态行及正文。
+    function Decode(const AData: Pointer; const ASize: Integer;
+      AClear: Boolean = True): Boolean; reintroduce; overload;
     // 在所有同名头中匹配完整的逗号分隔 token，不接受子串。
     function ContainsToken(const AName, AToken: string): Boolean;
     /// <summary>
@@ -283,7 +294,7 @@ type
     /// <param name="AClear">
     ///   是否清除现有数据
     /// </param>
-    function Decode(const AEncodedParams: string; AClear: Boolean = True): Boolean; override;
+    function Decode(const AEncodedParams: string; AClear: Boolean = True): Boolean; overload; override;
 
     /// <summary>
     ///   编码为字符串
@@ -1019,13 +1030,33 @@ begin
   Result := TryStrToInt(AValue, AMaxAge);
 end;
 
-{ TNameValue }
+{ TParamEntry }
 
-constructor TNameValue.Create(const AName,
+constructor TParamEntry.Create(const AName,
   AValue: string);
 begin
   Name := AName;
   Value := AValue;
+  RawValue := nil;
+  HasRawValue := False;
+end;
+
+constructor TParamEntry.Create(const AName: string; const ARawValue: Pointer;
+  const ARawSize: Integer);
+var
+  LRawValue: TBytes;
+  LValue: string;
+begin
+  if (ARawSize < 0) or ((ARawValue = nil) and (ARawSize > 0)) then
+    raise EArgumentException.Create('Invalid header value buffer');
+  SetLength(LRawValue, ARawSize);
+  if ARawSize > 0 then
+    Move(ARawValue^, LRawValue[0], ARawSize);
+  LValue := TUtils.GetString(LRawValue);
+  Name := AName;
+  Value := LValue;
+  RawValue := LRawValue;
+  HasRawValue := True;
 end;
 
 { TBaseParams.TEnumerator }
@@ -1036,7 +1067,7 @@ begin
   FIndex := -1;
 end;
 
-function TBaseParams.TEnumerator.GetCurrent: TNameValue;
+function TBaseParams.TEnumerator.GetCurrent: TParamEntry;
 begin
   Result := FParams.Items[FIndex];
 end;
@@ -1051,8 +1082,8 @@ end;
 
 constructor TBaseParams.Create;
 begin
-  FParams := TList<TNameValue>.Create(TComparer<TNameValue>.Construct(
-    function(const Left, Right: TNameValue): Integer
+  FParams := TList<TParamEntry>.Create(TComparer<TParamEntry>.Construct(
+    function(const Left, Right: TParamEntry): Integer
     begin
       Result := CompareText(Left.Name, Right.Name, TLocaleOptions.loUserLocale);
     end));
@@ -1061,7 +1092,8 @@ end;
 constructor TBaseParams.Create(const AEncodedParams: string);
 begin
   Create;
-  Decode(AEncodedParams, True);
+  if not Decode(AEncodedParams, True) and (Self is THttpHeader) then
+    raise EConvertError.Create('Invalid HTTP header');
 end;
 
 destructor TBaseParams.Destroy;
@@ -1073,20 +1105,22 @@ end;
 procedure TBaseParams.Add(const AName, AValue: string; ADupAllowed: Boolean);
 begin
   if ADupAllowed then
-    FParams.Add(TNameValue.Create(AName, AValue))
+    FParams.Add(TParamEntry.Create(AName, AValue))
   else
     SetParam(AName, AValue);
 end;
 
 procedure TBaseParams.Add(const AEncodedParams: string);
 begin
-  Decode(AEncodedParams, False);
+  if not Decode(AEncodedParams, False) and (Self is THttpHeader) then
+    raise EConvertError.Create('Invalid HTTP header');
 end;
 
 procedure TBaseParams.Assign(const ASource: TBaseParams);
 var
-  LParamItem: TNameValue;
+  LParamItem: TParamEntry;
 begin
+  if ASource = Self then Exit;
   Clear;
 
   if (ASource = nil) or (ASource.Count <= 0) then Exit;
@@ -1095,7 +1129,7 @@ begin
     Add(LParamItem);
 end;
 
-procedure TBaseParams.Add(const AParamValue: TNameValue);
+procedure TBaseParams.Add(const AParamValue: TParamEntry);
 begin
   FParams.Add(AParamValue);
 end;
@@ -1223,7 +1257,7 @@ begin
   Result := TEnumerator.Create(Self);
 end;
 
-function TBaseParams.GetItem(AIndex: Integer): TNameValue;
+function TBaseParams.GetItem(AIndex: Integer): TParamEntry;
 begin
   Result := FParams.Items[AIndex];
 end;
@@ -1243,7 +1277,7 @@ begin
   Result := '';
 end;
 
-procedure TBaseParams.SetItem(AIndex: Integer; const AValue: TNameValue);
+procedure TBaseParams.SetItem(AIndex: Integer; const AValue: TParamEntry);
 begin
   FParams[AIndex] := AValue;
 end;
@@ -1251,27 +1285,29 @@ end;
 procedure TBaseParams.SetParam(const AName, AValue: string);
 var
   I: Integer;
-  LItem: TNameValue;
+  LItem: TParamEntry;
 begin
   I := GetParamIndex(AName);
   if (I >= 0) then
   begin
     LItem := FParams[I];
     LItem.Value := AValue;
+    LItem.RawValue := nil;
+    LItem.HasRawValue := False;
     FParams[I] := LItem;
   end else
-    FParams.Add(TNameValue.Create(AName, AValue));
+    FParams.Add(TParamEntry.Create(AName, AValue));
 end;
 
-procedure TBaseParams.Sort(const AComparison: TNameValueComparison);
+procedure TBaseParams.Sort(const AComparison: TParamEntryComparison);
 var
-  LComparer: INameValueComparer;
+  LComparer: IParamEntryComparer;
 begin
   if Assigned(AComparison) then
-    LComparer := TNameValueComparer.Create(AComparison)
+    LComparer := TParamEntryComparer.Create(AComparison)
   else
-    LComparer := TNameValueComparer.Create(
-      function(const Left, Right: TNameValue): Integer
+    LComparer := TParamEntryComparer.Create(
+      function(const Left, Right: TParamEntry): Integer
       begin
         Result := CompareStr(Left.Name, Right.Name, TLocaleOptions.loInvariantLocale);
       end);
@@ -1375,121 +1411,148 @@ end;
 
 { THttpHeader }
 
-function THttpHeader.Decode(const AEncodedParams: string; AClear: Boolean): Boolean;
-const
-  CR = #13;
-  LF = #10;
-var
-  P, PEnd, LLineStart, LColonPos, LValueStart, LValueEnd: PChar;
-  LCh: Char;
-  LName, LValue: string;
-  LLineValid, LInName: Boolean;
-  LDecodedCount: Integer;
+function THttpHeader.Decode(const AData: Pointer; const ASize: Integer;
+  AClear: Boolean): Boolean;
 begin
-  if AClear then
-    FParams.Clear;
+  Result := _Decode(AData, ASize, AClear, True);
+end;
 
-  LDecodedCount := 0;
-  P := PChar(AEncodedParams);
-  PEnd := P + Length(AEncodedParams);
+function THttpHeader.Decode(const AEncodedParams: string; AClear: Boolean): Boolean;
+begin
+  Result := _Decode(PChar(AEncodedParams), Length(AEncodedParams), AClear, False);
+end;
 
-  // 单趟状态机解析 (RFC 7230 §3): 每行字符仅访问 1 次, 同时完成
-  //   1) CRLF 边界检测: bare-CR / bare-LF 立即拒绝 (Exit(False)),
-  //      防御 \r\r\n\n 等走私序列及上下游切分不一致
-  //   2) ':' 定位 (切 name / value)
-  //   3) value 前后 OWS 跳过 + 尾随 OWS 自动 trim
-  //   4) name 每字节 token 校验 + value 每字节 CTL 校验
-  //  非法行整行跳过 (仅限 name/value 校验失败, 不含 bare-CR/LF),
-  //  与 THttpHeader.Encode 过滤策略对称, 作为深度防御.
-  while (P < PEnd) do
+// 先检查这些字段的原始控制字节，避免字符集探测移除 BOM 后改变
+// 消息定界、编码或握手。普通文本字段继续交给 GetString 处理。
+function _IsControlHeader(const AName: string): Boolean;
+begin
+  Result := TStrUtils.SameText(AName, HEADER_CONTENT_LENGTH)
+    or TStrUtils.SameText(AName, HEADER_TRANSFER_ENCODING)
+    or TStrUtils.SameText(AName, HEADER_CONTENT_ENCODING)
+    or TStrUtils.SameText(AName, HEADER_ACCEPT_ENCODING)
+    or TStrUtils.SameText(AName, HEADER_CONNECTION)
+    or TStrUtils.SameText(AName, HEADER_UPGRADE)
+    or TStrUtils.SameText(AName, HEADER_EXPECT)
+    or TStrUtils.SameText(AName, 'Sec-WebSocket-Key')
+    or TStrUtils.SameText(AName, 'Sec-WebSocket-Version')
+    or TStrUtils.SameText(AName, 'Sec-WebSocket-Accept')
+    or TStrUtils.SameText(AName, 'Sec-WebSocket-Protocol')
+    or TStrUtils.SameText(AName, 'Sec-WebSocket-Extensions');
+end;
+
+function _IsValidControlBytes(const AData: PByte; const ASize: Integer;
+  const AAllowQuotedText: Boolean): Boolean;
+var
+  I: Integer;
+  LQuoted, LEscaped: Boolean;
+  C: Byte;
+begin
+  LQuoted := False;
+  LEscaped := False;
+  for I := 0 to ASize - 1 do
   begin
-    LLineStart := P;
-    LColonPos := nil;
-    LValueStart := nil;
-    LValueEnd := nil;
-    LLineValid := True;
-    LInName := True;
+    C := AData[I];
+    // Expect / Transfer-Encoding 的 quoted-string 允许 obs-text；引号和
+    // 转义边界仍按字节判断。具体 token/编码语法由现有协议层继续校验。
+    if (C > 127) and not LQuoted then Exit(False);
+    if not AAllowQuotedText then Continue;
+    if LEscaped then
+      LEscaped := False
+    else if LQuoted and (C = Ord('\')) then
+      LEscaped := True
+    else if C = Ord('"') then
+      LQuoted := not LQuoted;
+  end;
+  Result := not LQuoted;
+end;
 
-    // 内层: 逐字节扫描本行, 直到 CRLF 或 PEnd
-    while (P < PEnd) do
-    begin
-      LCh := P^;
+function THttpHeader._Decode(const AData: Pointer; const ASize: Integer;
+  const AClear, ABytes: Boolean): Boolean;
+var
+  I, J, LStart, LEnd, LColon, LValueStart, LValueEnd, LOldCount: Integer;
+  C: Char;
+  LName, LValue: string;
 
-      if (LCh = CR) then
-      begin
-        if (P + 1 < PEnd) and ((P + 1)^ = LF) then
-          Break; // 完整 CRLF: 退出内层, P 仍指向 CR
-        // bare-CR: 立即拒绝, 防御 \r\r\n\n 等走私序列
-        if AClear then FParams.Clear;
-        Exit(False);
-      end;
-
-      if (LCh = LF) then
-      begin
-        // bare-LF: 立即拒绝
-        if AClear then FParams.Clear;
-        Exit(False);
-      end;
-
-      if LInName then
-      begin
-        if (LCh = ':') then
-        begin
-          LColonPos := P;
-          LInName := False;
-        end else
-        if not TCrossHttpUtils.IsTokenChar(LCh) then
-          // name 段非 token 字符 (含 OWS / CTL / 非 ASCII 等) → 非法
-          LLineValid := False;
-      end else
-      begin
-        // value 段: 前导 OWS 跳过, 记录首/末非 OWS 位置, 同时校验 CTL
-        if (LCh <> ' ') and (LCh <> #9) then
-        begin
-          if (LValueStart = nil) then
-            LValueStart := P;
-          LValueEnd := P + 1; // exclusive: 最后非 OWS 字符之后位置
-          if not TCrossHttpUtils.IsHeaderValueChar(LCh) then
-            LLineValid := False;
-        end;
-      end;
-
-      Inc(P);
-    end;
-
-    // 退出内层: P 指向 CR (CRLF 完整) 或 P >= PEnd (末尾无 CRLF).
-    // 末尾无 CRLF 的残行也按相同规则尝试入库, 兼容 multipart part header
-    // 等调用方剥掉块终止符 \r\n\r\n 后再喂入的字符串. 主路径 HTTP
-    // request/response header 末尾必带空行 \r\n, 始终走 CRLF 完整分支,
-    // 严格性不变.
-    if (P < PEnd) then
-      Inc(P, 2); // 跳过 CRLF; PEnd 路径 P 已等于 PEnd, 外层 while 自然退出
-
-    if not LLineValid then Continue;
-
-    // 空行: header 块结束标记, 跳过.
-    //   CRLF 完整路径: LLineStart 指向被消费 CRLF 的位置 (即 P - 2)
-    //   PEnd 路径    : LLineStart 等于 P (本行 0 字节)
-    if (LLineStart = P) or (LLineStart = P - 2) then Continue;
-
-    // 必须出现过 ':'
-    if (LColonPos = nil) then Continue;
-
-    // name 不能为空
-    if (LColonPos = LLineStart) then Continue;
-
-    SetString(LName, LLineStart, LColonPos - LLineStart);
-
-    if (LValueStart = nil) then
-      LValue := ''
+  function ReadChar(const AIndex: Integer): Char;
+  begin
+    if ABytes then
+      Result := Char(PByte(AData)[AIndex])
     else
-      SetString(LValue, LValueStart, LValueEnd - LValueStart);
-
-    Add(LName, LValue, True);
-    Inc(LDecodedCount);
+      Result := PChar(AData)[AIndex];
   end;
 
-  Result := (LDecodedCount > 0);
+begin
+  // 参数错误不能改变已有内容；语法失败只回滚本次追加的字段。
+  if (ASize < 0) or ((AData = nil) and (ASize > 0)) then
+    raise EArgumentException.Create('Invalid header buffer');
+  if AClear then FParams.Clear;
+  LOldCount := FParams.Count;
+  Result := False;
+  try
+    I := 0;
+    while I < ASize do
+    begin
+      LStart := I;
+      LColon := -1;
+      while I < ASize do
+      begin
+        C := ReadChar(I);
+        if C = #13 then
+        begin
+          if (I + 1 >= ASize) or (ReadChar(I + 1) <> #10) then Exit;
+          Break;
+        end;
+        if C = #10 then Exit;
+        if LColon < 0 then
+        begin
+          if C = ':' then
+            LColon := I
+          else if not TCrossHttpUtils.IsTokenChar(C) then Exit;
+        end
+        else if not TCrossHttpUtils.IsHeaderValueChar(C) then Exit;
+        Inc(I);
+      end;
+      LEnd := I;
+      if I < ASize then Inc(I, 2);
+      if LEnd = LStart then
+      begin
+        // 终止空行后不能再有字段或正文。
+        Result := I = ASize;
+        Exit;
+      end;
+      if LColon <= LStart then Exit;
+      LValueStart := LColon + 1;
+      LValueEnd := LEnd;
+      while (LValueStart < LValueEnd)
+        and ((ReadChar(LValueStart) = ' ') or (ReadChar(LValueStart) = #9)) do
+        Inc(LValueStart);
+      while (LValueEnd > LValueStart)
+        and ((ReadChar(LValueEnd - 1) = ' ') or (ReadChar(LValueEnd - 1) = #9)) do
+        Dec(LValueEnd);
+      // name 已通过 ASCII token 校验，直接扩宽，避免任何字符集推断。
+      SetLength(LName, LColon - LStart);
+      for J := LStart to LColon - 1 do
+        LName[J - LStart + 1] := ReadChar(J);
+      if ABytes then
+      begin
+        if _IsControlHeader(LName) and not _IsValidControlBytes(
+          PByte(AData) + LValueStart, LValueEnd - LValueStart,
+          TStrUtils.SameText(LName, HEADER_EXPECT)
+          or TStrUtils.SameText(LName, HEADER_TRANSFER_ENCODING)) then Exit;
+        FParams.Add(TParamEntry.Create(LName, PByte(AData) + LValueStart,
+          LValueEnd - LValueStart));
+      end
+      else
+      begin
+        SetString(LValue, PChar(AData) + LValueStart, LValueEnd - LValueStart);
+        FParams.Add(TParamEntry.Create(LName, LValue));
+      end;
+    end;
+    Result := True;
+  finally
+    if not Result then
+      while FParams.Count > LOldCount do FParams.Delete(FParams.Count - 1);
+  end;
 end;
 
 function THttpHeader.Encode: string;
@@ -1497,21 +1560,19 @@ var
   I: Integer;
   LName, LValue: string;
 begin
-  // 防御 HTTP 响应拆分 (Response Splitting):
-  //   Header name 必须是 RFC 7230 token, value 不允许 CR/LF/CTL.
-  //   非法 entry 直接跳过 (业务方应在写入前自行 sanitize), 避免拼到 wire 上注入伪造响应.
   Result := '';
   for I := 0 to FParams.Count - 1 do
   begin
     LName := FParams[I].Name;
     LValue := FParams[I].Value;
-
-    if not TCrossHttpUtils.IsValidHeaderName(LName) then Continue;
-    if not TCrossHttpUtils.IsValidHeaderValue(LValue) then Continue;
-
+    if not TCrossHttpUtils.IsValidHeaderName(LName)
+      or not TCrossHttpUtils.IsValidHeaderValue(LValue) then
+      raise EConvertError.Create('Invalid HTTP header field');
+    // 发送始终使用当前字符串，原始字节仅供查看。
     Result := Result + LName + ': ' + LValue + #13#10;
   end;
   Result := Result + #13#10;
+  TCrossHttpUtils.CheckUtf16(Result);
 end;
 
 { TDelimitParams }
@@ -1601,8 +1662,8 @@ end;
 
 function TRequestCookies.Decode(const AEncodedParams: string; AClear: Boolean): Boolean;
 var
-  LParsedParams: TList<TNameValue>;
-  LItem: TNameValue;
+  LParsedParams: TList<TParamEntry>;
+  LItem: TParamEntry;
   LPos, LLen, LPairEnd, LEqualsPos, LDecodedCount: Integer;
   LPair: string;
   LName, LValue: string;
@@ -1611,7 +1672,7 @@ begin
   LDecodedCount := 0;
   Result := False;
   // 先解析到临时列表，确保整行 Cookie 全部合法后再提交，避免失败时留下半解析数据。
-  LParsedParams := TList<TNameValue>.Create;
+  LParsedParams := TList<TParamEntry>.Create;
   try
     LLen := Length(AEncodedParams);
     LPos := 1;
@@ -1651,7 +1712,7 @@ begin
         Exit;
       end;
 
-      LParsedParams.Add(TNameValue.Create(LName, LNormalizedValue));
+      LParsedParams.Add(TParamEntry.Create(LName, LNormalizedValue));
       LPos := LPairEnd + 1;
       Inc(LDecodedCount);
     end;
@@ -2320,7 +2381,8 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
     Result := TUtils.GetGUID.ToLower;
   end;
 
-  function __InitFormFieldByHeader(AFormField: TFormField; const AHeader: string): Boolean;
+  function __InitFormFieldByHeader(AFormField: TFormField;
+    const AHeader: Pointer; const AHeaderSize: Integer): Boolean;
   var
     LFieldHeader: THttpHeader;
     LContentDisposition: string;
@@ -2330,7 +2392,7 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
 
     LFieldHeader := THttpHeader.Create;
     try
-      LFieldHeader.Decode(AHeader);
+      if not LFieldHeader.Decode(AHeader, AHeaderSize) then Exit;
       LContentDisposition := LFieldHeader['Content-Disposition'];
       if (LContentDisposition = '') then Exit;
 
@@ -2387,7 +2449,6 @@ var
   C: Byte;
   I, LSize: Integer;
   P: PByte;
-  LPartHeader: string;
   LNewField: TFormField;
   LFailedFilePath: string;
 begin
@@ -2534,16 +2595,15 @@ begin
               begin
                 FLineEndState := lesCR1;
                 // 块头部结束 #13#10#13#10
-                // 块头部通常采用UTF8编码
-                LPartHeader := TUtils.GetString(@FCurrentPartHeader[0], FCurrentPartHeaderLen - 4{#13#10#13#10});
-                FCurrentPartHeaderLen := 0;
                 LNewField := TFormField.Create;
                 try
-                  if not __InitFormFieldByHeader(LNewField, LPartHeader) then
+                  if not __InitFormFieldByHeader(LNewField, @FCurrentPartHeader[0],
+                    FCurrentPartHeaderLen) then
                   begin
                     AConsumed := I + 1;
                     Exit(frFailed);
                   end;
+                  FCurrentPartHeaderLen := 0;
                   FPartFields.Add(LNewField);
                   FCurrentPartField := LNewField;
                   LNewField := nil;

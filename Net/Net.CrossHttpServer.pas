@@ -116,9 +116,9 @@ type
   ///   HTTP请求接口
   /// </summary>
   ICrossHttpRequest = interface
-  ['{B26B7E7B-6B24-4D86-AB58-EBC20722CFDD}']
+  ['{6F42E391-5B3B-41F6-9A75-8C03312E8669}']
     function GetConnection: ICrossHttpConnection;
-    function GetRawRequestText: string;
+    function GetRawRequestHeader: TBytes;
     function GetRawPathAndQuery: string;
     function GetMethod: string;
     function GetPath: string;
@@ -165,9 +165,9 @@ type
     property Connection: ICrossHttpConnection read GetConnection;
 
     /// <summary>
-    ///   原始请求数据
+    ///   原始请求行、字段和结束空行的副本，不含正文。
     /// </summary>
-    property RawRequestText: string read GetRawRequestText;
+    property RawRequestHeader: TBytes read GetRawRequestHeader;
 
     /// <summary>
     ///   原始请求路径及参数
@@ -1848,7 +1848,7 @@ type
 
   TCrossHttpRequest = class(TInterfacedObject, ICrossHttpRequest)
   private
-    FRawRequestText: string;
+    FRawRequestHeader: TBytes;
     FMethod, FPath, FQueryText, FPathAndQuery, FVersion: string;
     FRawPath, FRawQueryText, FRawPathAndQuery: string;
     FHttpVerNum: Integer;
@@ -1895,7 +1895,7 @@ type
     function CalcIsChunked: Boolean; inline;
   protected
     function GetConnection: ICrossHttpConnection;
-    function GetRawRequestText: string;
+    function GetRawRequestHeader: TBytes;
     function GetRawPathAndQuery: string;
     function GetMethod: string;
     function GetPath: string;
@@ -1942,7 +1942,7 @@ type
     destructor Destroy; override;
 
     property Connection: ICrossHttpConnection read GetConnection;
-    property RawRequestText: string read GetRawRequestText;
+    property RawRequestHeader: TBytes read GetRawRequestHeader;
     property RawPathAndParams: string read GetRawPathAndQuery;
     property Method: string read GetMethod;
     property Path: string read GetPath;
@@ -3066,7 +3066,8 @@ begin
 
   case FRequestObj.GetBodyType of
     btMultiPart:
-      (FRequestObj.FBody as THttpMultiPartFormData).Decode(ADataPtr, ADataSize);
+      if (FRequestObj.FBody as THttpMultiPartFormData).Decode(ADataPtr, ADataSize) = frFailed then
+        (FHttpParser as TCrossHttpParser).Fail(400, 'Invalid multipart form data.');
 
     btUrlEncoded, btBinary:
       if (FRequestObj.FRawBody <> nil) then
@@ -4825,9 +4826,9 @@ begin
   Result := FRawPathAndQuery;
 end;
 
-function TCrossHttpRequest.GetRawRequestText: string;
+function TCrossHttpRequest.GetRawRequestHeader: TBytes;
 begin
-  Result := FRawRequestText;
+  Result := Copy(FRawRequestHeader);
 end;
 
 function TCrossHttpRequest.GetReferer: string;
@@ -4878,83 +4879,76 @@ end;
 function TCrossHttpRequest.ParseHeader(const ADataPtr: Pointer;
   const ADataSize: Integer): Boolean;
 var
-  LRequestHeader, LPortStr: string;
+  LPortStr, LName, LValue: string;
   LCookieValues, LCLValues: TArray<string>;
   LFirstCL: string;
-  I, J: Integer;
+  I, J, K, LLineEnd, LTargetStart, LTargetEnd, LQueryStart, LStart: Integer;
   LPortInt: Integer;
+  P: PByte;
 begin
   Assert(Self <> nil, 'FRequest is nil');
-
-  // 整体包一层 try/except 保证任何畸形输入都以 Result := False 返回,
-  // 不会让异常上抛到 _OnHeaderData 环外. 常见调用点如:
-  //   - Substring/IndexOf 上的越界 (请求行过短、缺少空格等)
-  //   - LPortStr.ToInteger 遇到非数字时抛 EConvertError
-  //   - THttpHeader.Decode 内部异常
-  //   - FCookies.Decode 内部异常
-  // 都被这里统一归为 400 Bad Request
+  // 所有结构边界先按字节确定，再转换各文本片段。
   try
-    SetString(FRawRequestText, MarshaledAString(ADataPtr), ADataSize);
-
-    // 拒绝包含 NUL 字节的请求 (可能导致跨编译器字符串行为差异)
-    if (FRawRequestText.IndexOf(#0) >= 0) then
+    if (ADataPtr = nil) or (ADataSize <= 0) then Exit(False);
+    SetLength(FRawRequestHeader, ADataSize);
+    Move(ADataPtr^, FRawRequestHeader[0], ADataSize);
+    P := Pointer(FRawRequestHeader);
+    LLineEnd := 0;
+    while (LLineEnd < ADataSize) and (P[LLineEnd] <> 13) do
     begin
-      _Log('The request header cannot contain #0');
-      Exit(False);
+      if (P[LLineEnd] = 0) or (P[LLineEnd] = 10) then Exit(False);
+      Inc(LLineEnd);
     end;
+    if (LLineEnd + 1 >= ADataSize) or (P[LLineEnd + 1] <> 10) then Exit(False);
+    I := 0;
+    while (I < LLineEnd) and (P[I] <> 32) do Inc(I);
+    if (I <= 0) or (I >= LLineEnd) then Exit(False);
+    J := I + 1;
+    while (J < LLineEnd) and (P[J] <> 32) do Inc(J);
+    if (J <= I + 1) or (J >= LLineEnd - 1) then Exit(False);
+    LTargetStart := I + 1;
+    LTargetEnd := J;
+    FRequestCmdLine := TUtils.GetString(P, LLineEnd);
+    FMethod := TUtils.GetString(P, I).ToUpper;
+    FVersion := TUtils.GetString(P + J + 1, LLineEnd - J - 1).ToUpper;
+    if not FHeader.Decode(P + LLineEnd + 2, ADataSize - LLineEnd - 2) then Exit(False);
 
-    I := FRawRequestText.IndexOf(#13#10);
-    // 第一行是请求命令行
-    // GET /home?param=123 HTTP/1.1
-    FRequestCmdLine := FRawRequestText.Substring(0, I);
-    // 第二行起是请求头
-    LRequestHeader := FRawRequestText.Substring(I + 2);
-    // 解析请求头
-    FHeader.Decode(LRequestHeader);
-
-    // 请求行必须包含三段: METHOD SP PATH SP VERSION (RFC 7230 §3.1.1)
-    // 任何一段为空都不合法, 否则会出现:
-    //   - FMethod=='' 导致路由匹配疑难
-    //   - FVersion 含错位片段 (如 "GET") 导致 _CreateHeader 输出伪 HTTP 状态行
-    // 这里在拆分前先检查两个空格的位置严格递增, 三段均非空
-    I := FRequestCmdLine.IndexOf(' ');
-    if (I <= 0) then Exit(False);
-    J := FRequestCmdLine.IndexOf(' ', I + 1);
-    if (J <= I + 1) or (J >= FRequestCmdLine.Length - 1) then
+    FRawPathAndQuery := TUtils.GetString(P + LTargetStart, LTargetEnd - LTargetStart);
+    K := LTargetStart;
+    while (K < LTargetEnd) and (P[K] <> Ord('?')) do Inc(K);
+    FRawPath := TUtils.GetString(P + LTargetStart, K - LTargetStart);
+    FRawQueryText := '';
+    FQueryText := '';
+    FQuery.Clear;
+    if K < LTargetEnd then
     begin
-      _Log('Invalid request command line:%s', [FRequestCmdLine]);
-      Exit(False);
-    end;
-
-    // 请求方法(GET, POST, PUT, DELETE...)
-    FMethod := FRequestCmdLine.Substring(0, I).ToUpper;
-
-    // 路径及参数(/home?param=123)
-    FRawPathAndQuery := FRequestCmdLine.Substring(I + 1, J - I - 1);
-
-    // 请求的HTTP版本(HTTP/1.1)
-    FVersion := FRequestCmdLine.Substring(J + 1).ToUpper;
-
-    // 解析?key1=value1&key2=value2参数
-    J := FRawPathAndQuery.IndexOf('?');
-    if (J < 0) then
-    begin
-      FRawPath := FRawPathAndQuery;
-      FRawQueryText := '';
-      FQueryText := '';
-    end else
-    begin
-      FRawPath := FRawPathAndQuery.Substring(0, J);
-      FRawQueryText := FRawPathAndQuery.Substring(J + 1);
+      LQueryStart := K + 1;
+      FRawQueryText := TUtils.GetString(P + LQueryStart, LTargetEnd - LQueryStart);
       FQueryText := TCrossHttpUtils.UrlDecode(FRawQueryText);
+      // 与 THttpUrlParams 的字符串入口保持相同规则：忽略空片段，保留重复项，
+      // 只解码一次。先找 &/=，防止字符集转换或 %26/%3D 改变参数边界。
+      K := LQueryStart;
+      while K < LTargetEnd do
+      begin
+        while (K < LTargetEnd) and (P[K] = Ord('&')) do Inc(K);
+        if K >= LTargetEnd then Break;
+        LStart := K;
+        while (K < LTargetEnd) and (P[K] <> Ord('=')) and (P[K] <> Ord('&')) do Inc(K);
+        LName := TCrossHttpUtils.UrlDecode(TUtils.GetString(P + LStart, K - LStart));
+        LValue := '';
+        if (K < LTargetEnd) and (P[K] = Ord('=')) then
+        begin
+          Inc(K);
+          LStart := K;
+          while (K < LTargetEnd) and (P[K] <> Ord('&')) do Inc(K);
+          LValue := TCrossHttpUtils.UrlDecode(TUtils.GetString(P + LStart, K - LStart));
+        end;
+        FQuery.Add(LName, LValue, True);
+      end;
     end;
-
     FPath := TCrossHttpUtils.UrlDecode(FRawPath);
     FPathAndQuery := FPath;
-    if (FQueryText <> '') then
-      FPathAndQuery := FPathAndQuery + '?' + FQueryText;
-
-    FQuery.Decode(FRawQueryText);
+    if FQueryText <> '' then FPathAndQuery := FPathAndQuery + '?' + FQueryText;
 
     // HTTP协议版本
     if (FVersion = '') then
@@ -5736,13 +5730,9 @@ begin
 
   if (FStatusText <> '') then
   begin
-    if TCrossHttpUtils.IsValidHeaderValue(FStatusText) then
-      LStatusText := FStatusText
-    else
-    begin
-      _Log('_CreateHeader: FStatusText contains invalid chars, falling back to default');
-      LStatusText := TCrossHttpUtils.GetHttpStatusText(FStatusCode);
-    end;
+    if not TCrossHttpUtils.IsValidHeaderValue(FStatusText) then
+      raise EConvertError.Create('Invalid HTTP status text');
+    LStatusText := FStatusText;
   end else
     LStatusText := TCrossHttpUtils.GetHttpStatusText(FStatusCode);
 
@@ -5755,21 +5745,12 @@ begin
     LStatusText + #13#10;
 
   for LCookie in FCookies do
-  begin
-    try
-      LHeaderStr := LHeaderStr + HEADER_SETCOOKIE + ': ' + LCookie.Encode + #13#10;
-    except
-      on E: Exception do
-      begin
-        _Log('TCrossHttpResponse._CreateHeader: skip invalid cookie: %s', [E.Message]);
-        Continue;
-      end;
-    end;
-  end;
+    LHeaderStr := LHeaderStr + HEADER_SETCOOKIE + ': ' + LCookie.Encode + #13#10;
 
   LHeaderStr := LHeaderStr + FHeader.Encode;
 
-  Result := TEncoding.ASCII.GetBytes(LHeaderStr);
+  TCrossHttpUtils.CheckUtf16(LHeaderStr);
+  Result := TEncoding.UTF8.GetBytes(LHeaderStr);
 end;
 
 procedure TCrossHttpResponse._SendHeaders(const ABodySize: Int64;

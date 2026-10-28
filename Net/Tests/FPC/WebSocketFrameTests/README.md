@@ -135,3 +135,12 @@ Linux 在本目录使用现有 WSL 环境运行 `python3 -B run_sender_tests.py 
 最终组合：Windows Delphi/FPC 与 Linux Delphi/FPC 四目标均完整重编并通过组件 61 项、旧 Sender 生命周期检查、每目标 **11,056** 组合法帧/拆分矩阵、每目标 **11 个真实 TCP 回环**。产物及哈希位于 `bin/managed-final/`。四目标记录的 HttpServer SHA256 均为 `05e11b5e00dc07c22b173064dbd3f1851c619c219f367d47dc80d6b855386833`，覆盖 S02 发送策略下的 101 升级兼容；不把后续共享工作区改动算入这些二进制。
 
 本批只处理托管尾槽引用，不宣称性能收益。O06 后续必须基于本批修复后的源码另取基线。统一冻结记录在相邻 `TlsIoTests/bin/managed-final-manifest.json`。
+
+
+## 2026-10-28 Header 字节解析与测试 Owner 修复
+
+HTTP 字节解码在 GetString 之前校验握手控制字段的原始字节，阻止值开头 BOM 被移除后误接受握手。新增服务端 key/version/upgrade/connection 及客户端 accept/protocol/upgrade/connection 八种 BOM 回归；连同原用例共 55 项。Delphi Win64/Win32、FPC Win64、Delphi/FPC Linux64 实际运行均为 **55/55**。Windows 记录在 `bin/header-repair-v3-20261028/`；Linux 在 `bin/header-repair-linux-v3-20261028/*/handshake.json`。旧程序的扩展用例红基线在 `bin/header-handshake-20261027/win64/bom-red-20261028.json`，为 46/55。
+
+Sender 的测试连接不再传 nil Owner，而是持有真实 TCrossSocket 接口直至连接析构；没有修改生产 Socket 构造器或 WebSocket 发送算法。五目标综合程序重新通过 61 项组件、11,056 组帧拆分、发送生命周期及 11 个真实回环；Windows 发送队列专项三目标各 23/23（含管理尾槽断言），记录在 `bin/sender-header-repair-20261028/`。此前 2026-10-27 综合程序的访问异常已经解决，旧失败日志保留。
+
+本次完整验证汇总见 `../HttpHeaderTests/REPAIR_RESULTS.json`。未执行浏览器、TLS 全矩阵、macOS 或生产长压。

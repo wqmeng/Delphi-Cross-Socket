@@ -1175,7 +1175,6 @@ type
     FConnection: ICrossHttpClientConnection;
     FConnectionObj: TCrossHttpClientConnection;
 
-    FRawResponseHeader: string;
     FHttpVer: string;
     FStatusCode: Integer;
     FStatusText: string;
@@ -2625,6 +2624,7 @@ function TCrossHttpClientConnection._CreateRequestHeader(const ABodySize: Int64;
   AChunked: Boolean): TBytes;
 var
   LHeaderStr, LCookieStr, LPathStr: string;
+  LParam: TParamEntry;
 begin
   _ReqLock;
   try
@@ -2687,6 +2687,16 @@ begin
     if (FRequestObj.FHeader[HEADER_CROSS_HTTP_CLIENT] = '') then
       FRequestObj.FHeader[HEADER_CROSS_HTTP_CLIENT] := CROSS_HTTP_CLIENT_NAME;
 
+    TCrossHttpUtils.CheckUtf16(FRequestObj.FPathAndParams);
+    if FAutoUrlEncode then
+    begin
+      TCrossHttpUtils.CheckUtf16(FRequestObj.FPath);
+      for LParam in FRequestObj.FQuery do
+      begin
+        TCrossHttpUtils.CheckUtf16(LParam.Name);
+        TCrossHttpUtils.CheckUtf16(LParam.Value);
+      end;
+    end;
     if FAutoUrlEncode then
     begin
       // 按 RFC 3986 分组件编码:
@@ -2711,7 +2721,8 @@ begin
     _ReqUnlock;
   end;
 
-  Result := TEncoding.ASCII.GetBytes(LHeaderStr);
+  TCrossHttpUtils.CheckUtf16(LHeaderStr);
+  Result := TEncoding.UTF8.GetBytes(LHeaderStr);
 end;
 
 procedure TCrossHttpClientConnection._EndRequest;
@@ -3369,58 +3380,33 @@ end;
 function TCrossHttpClientResponse.ParseHeader(const ADataPtr: Pointer;
   const ADataSize: Integer): Boolean;
 var
-  LResponseFirstLine, LResponseHeader, LCode: string;
-  I, J: Integer;
-  LHeader: TNameValue;
+  I, LLineEnd: Integer;
+  P: PByte;
+  LHeader: TParamEntry;
   LCookie: TResponseCookie;
 begin
   Result := False;
-  {
-  HTTP/1.1 200 OK
-  Content-Type: application/json;charset=utf-8
-  Content-Encoding: gzip
-  Connection: keep-alive
-  Transfer-Encoding: chunked
-  }
-  {
-  HTTP/1.1 200 OK
-  Content-Type: text/plain
-  Accept-Ranges: bytes
-  Content-Encoding: gzip
-  Connection: keep-alive
-  Transfer-Encoding: chunked
-  }
-  SetString(FRawResponseHeader, MarshaledAString(ADataPtr), ADataSize);
-  I := FRawResponseHeader.IndexOf(#13#10);
-  if (I < 0) then Exit(False);
-  // 第一行是响应状态
-  // HTTP/1.1 200 OK
-  LResponseFirstLine := FRawResponseHeader.Substring(0, I);
-  if FRawResponseHeader.IndexOf(#0) >= 0 then Exit;
-  // 第二行起是请求头
-  LResponseHeader := FRawResponseHeader.Substring(I + 2);
-  // 解析请求头
-  if (LResponseHeader <> '') and (LResponseHeader <> #13#10)
-    and not FHeader.Decode(LResponseHeader) then Exit;
-
-  // HTTP版本(HTTP/1.0 HTTP/1.1)
-  I := LResponseFirstLine.IndexOf(' ');
-  if I <> 8 then Exit;
-  FHttpVer := LResponseFirstLine.Substring(0, I);
+  if (ADataPtr = nil) or (ADataSize <= 0) then Exit;
+  P := ADataPtr;
+  LLineEnd := 0;
+  while (LLineEnd < ADataSize) and (P[LLineEnd] <> 13) do
+  begin
+    if not TCrossHttpUtils.IsHeaderValueChar(Char(P[LLineEnd])) then Exit;
+    Inc(LLineEnd);
+  end;
+  if (LLineEnd + 1 >= ADataSize) or (P[LLineEnd + 1] <> 10) then Exit;
+  // 固定的 ASCII 版本和三位状态码先按原始字节定位。
+  if (LLineEnd < 13) or (P[8] <> 32) or (P[12] <> 32) then Exit;
+  for I := 0 to 7 do
+    if P[I] > 127 then Exit;
+  FHttpVer := TUtils.GetString(P, 8);
   if (FHttpVer <> 'HTTP/1.0') and (FHttpVer <> 'HTTP/1.1') then Exit;
-
-  // 响应状态码(200 400 404)
-  J := LResponseFirstLine.IndexOf(' ', I + 1);
-  if J <> I + 4 then Exit;
-  LCode := LResponseFirstLine.Substring(I + 1, 3);
-  if (LCode[1] < '1') or (LCode[1] > '9')
-    or (LCode[2] < '0') or (LCode[2] > '9')
-    or (LCode[3] < '0') or (LCode[3] > '9') then Exit;
-  FStatusCode := StrToInt(LCode);
-
-  // 响应状态文本(OK)
-  FStatusText := LResponseFirstLine.SubString(J + 1);
-  if not TCrossHttpUtils.IsValidHeaderValue(FStatusText) then Exit;
+  if (P[9] < Ord('1')) or (P[9] > Ord('9'))
+    or (P[10] < Ord('0')) or (P[10] > Ord('9'))
+    or (P[11] < Ord('0')) or (P[11] > Ord('9')) then Exit;
+  FStatusCode := (P[9] - Ord('0')) * 100 + (P[10] - Ord('0')) * 10 + P[11] - Ord('0');
+  FStatusText := TUtils.GetString(P + 13, LLineEnd - 13);
+  if not FHeader.Decode(P + LLineEnd + 2, ADataSize - LLineEnd - 2) then Exit;
   FKeepAlive := not FHeader.ContainsToken(HEADER_CONNECTION, 'close')
     and ((FHttpVer = 'HTTP/1.1') or FHeader.ContainsToken(HEADER_CONNECTION, 'keep-alive'));
 

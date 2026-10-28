@@ -1,5 +1,7 @@
 ﻿type
   TMemoryConnection = class(TCrossHttpConnection)
+  private
+    FCleaned: Boolean;
   protected
     procedure DirectSend(const ABuffer: Pointer; const ACount: Integer;
       const ACallback: TCrossConnectionCallback); override;
@@ -56,7 +58,8 @@ end;
 
 procedure TMemoryConnection.Cleanup;
 begin
-  if ConnectStatus = csClosed then Exit;
+  if FCleaned then Exit;
+  FCleaned := True;
   ConnectStatus := csClosed;
   // 与现有内存连接测试一致：无真实 socket，显式进入正常关闭清理。
   InternalClose;

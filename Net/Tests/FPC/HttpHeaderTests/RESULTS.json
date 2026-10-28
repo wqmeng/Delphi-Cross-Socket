@@ -1,0 +1,458 @@
+{
+  "date": "2026-10-27",
+  "head": "48159035aac1285b37af4ecb82c166438e827920",
+  "source_sha256": {
+    "Net/Net.CrossHttpParams.pas": "a66dacfc16b7286328a53e69bc6e706e6f66f3161c500bec4eb62ca8227f7584",
+    "Net/Net.CrossHttpClient.pas": "a6249363ed0d490151602e801fb1d9b575b521a7c4308e93c4630fdd3e937ee6",
+    "Net/Net.CrossHttpServer.pas": "bc993c64f74fe1283e9f3875b15ed51f834a58523a793d97a0f51c360a461529",
+    "Net/Net.CrossHttpUtils.pas": "fbbe441a0ed7c8f4f90733ef596b5ce2a5b4a9605806a27bd9681524dc7fd0c5",
+    "Utils/Utils.Utils.pas": "8d42b5174de887643b736e81dda156939677817cc6af8099998b8d65e2779c89",
+    "Net/Tests/FPC/HttpHeaderTests/HttpHeaderTests.lpr": "36e70433f461bd4f671386e9ffdcf9e5ef6fb5dd5a3c4c85740affe21c47e6d5",
+    "Net/Tests/FPC/HttpHeaderTests/run_tests.py": "3749f0fc0863156df631a708c668d82bde4fe3c5857e5f78c921fe5a5804df0f"
+  },
+  "specialized": [
+    {
+      "target": "fpc64",
+      "configuration": "final-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-v2/fpc64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "win32",
+      "configuration": "final-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-v2/win32/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "win64",
+      "configuration": "final-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-v2/win64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "fpc64",
+      "configuration": "final-checked-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-checked-v2/fpc64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "win32",
+      "configuration": "final-checked-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-checked-v2/win32/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "win64",
+      "configuration": "final-checked-v2",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-checked-v2/win64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\r\ndecode\r\nGETSTRING_CONVERSION_ERRORS 0\r\nencode\r\nrequest\r\nmultipart\r\nserver-output\r\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "delphi-linux64",
+      "configuration": "final-linux-v3",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-linux-v3/delphi-linux64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\ndecode\nGETSTRING_CONVERSION_ERRORS 128\nencode\nrequest\nmultipart\nserver-output\nPASS checks=785"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    },
+    {
+      "target": "fpc-linux64",
+      "configuration": "final-linux-v3",
+      "results": "Net/Tests/FPC/HttpHeaderTests/bin/final-linux-v3/fpc-linux64/results.json",
+      "output": [
+        {
+          "case": "component",
+          "output": "entries\ndecode\nGETSTRING_CONVERSION_ERRORS 0\nencode\nrequest\nmultipart\nserver-output\nPASS checks=1041"
+        },
+        {
+          "case": "valid",
+          "output": "PASS checks=6"
+        },
+        {
+          "case": "opaque-response",
+          "output": "PASS checks=7"
+        },
+        {
+          "case": "empty-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "bad-response",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-field",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-utf16",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-method",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query",
+          "output": "PASS checks=4"
+        },
+        {
+          "case": "invalid-query-name",
+          "output": "PASS checks=4"
+        }
+      ]
+    }
+  ],
+  "adjacent": {
+    "HttpFailureTests": [
+      {
+        "target": "fpc64",
+        "passed": 143,
+        "total": 143,
+        "results": "Net/Tests/FPC/HttpFailureTests/bin/header-20261027/fpc64/results.json"
+      },
+      {
+        "target": "win32",
+        "passed": 143,
+        "total": 143,
+        "results": "Net/Tests/FPC/HttpFailureTests/bin/header-20261027/win32/results.json"
+      },
+      {
+        "target": "win64",
+        "passed": 143,
+        "total": 143,
+        "results": "Net/Tests/FPC/HttpFailureTests/bin/header-20261027/win64/results.json"
+      }
+    ],
+    "HttpAuthTests": [
+      {
+        "target": "fpc64",
+        "passed": 59,
+        "total": 59,
+        "results": "Net/Tests/FPC/HttpAuthTests/bin/header-20261027/fpc64/results.json"
+      },
+      {
+        "target": "win32",
+        "passed": 59,
+        "total": 59,
+        "results": "Net/Tests/FPC/HttpAuthTests/bin/header-20261027/win32/results.json"
+      },
+      {
+        "target": "win64",
+        "passed": 59,
+        "total": 59,
+        "results": "Net/Tests/FPC/HttpAuthTests/bin/header-20261027/win64/results.json"
+      }
+    ],
+    "WebSocketFrameTests": [
+      {
+        "target": "fpc64",
+        "passed": 47,
+        "total": 47,
+        "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-handshake-20261027/fpc64/results.json"
+      },
+      {
+        "target": "win32",
+        "passed": 47,
+        "total": 47,
+        "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-handshake-20261027/win32/results.json"
+      },
+      {
+        "target": "win64",
+        "passed": 47,
+        "total": 47,
+        "results": "Net/Tests/FPC/WebSocketFrameTests/bin/header-handshake-20261027/win64/results.json"
+      }
+    ]
+  },
+  "limitations": [
+    "Delphi Linux GetString can raise EEncodingError on non-UTF8 input; original helper behavior preserved.",
+    "WebSocketFrameTests Win64 sender test access violation reproduced with pre-change HEAD sources.",
+    "No macOS, ARM, full TLS matrix or throughput benchmarks."
+  ]
+}

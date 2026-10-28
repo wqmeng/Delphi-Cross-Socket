@@ -1332,6 +1332,9 @@ type
     /// </remarks>
     class function IsValidHeaderValue(const AValue: string): Boolean; static;
 
+    // 编码完整发送头之前检查 UTF-16，禁止编码器静默替换孤立代理项。
+    class procedure CheckUtf16(const AText: string); static;
+
     /// <summary>
     ///   校验 HTTP header field-name 是否符合 RFC 7230 token 字符集.
     /// </summary>
@@ -2064,6 +2067,27 @@ begin
   end;
 
   Result := True;
+end;
+
+class procedure TCrossHttpUtils.CheckUtf16(const AText: string);
+var
+  I, C: Integer;
+begin
+  I := 1;
+  while I <= Length(AText) do
+  begin
+    C := Ord(AText[I]);
+    if (C >= $D800) and (C <= $DBFF) then
+    begin
+      Inc(I);
+      if (I > Length(AText)) or (Ord(AText[I]) < $DC00)
+        or (Ord(AText[I]) > $DFFF) then
+        raise EConvertError.Create('Invalid UTF-16 in HTTP header');
+    end
+    else if (C >= $DC00) and (C <= $DFFF) then
+      raise EConvertError.Create('Invalid UTF-16 in HTTP header');
+    Inc(I);
+  end;
 end;
 
 class function TCrossHttpUtils.IsTokenChar(ACh: Char): Boolean;

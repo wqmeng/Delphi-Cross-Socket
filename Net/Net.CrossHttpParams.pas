@@ -1227,12 +1227,47 @@ begin
   inherited;
 end;
 
-procedure TBaseParams.Add(const AName, AValue: string; ADupAllowed: Boolean);
+// 扩容/通知路径保留原记录提交：先取得参数引用，再由 RTL 扩容并触发通知。
+// 不内联，避免容量内追加也初始化、复制、终结整条临时 TParamEntry。
+procedure _AddParamItem(const AParams: TList<TParamEntry>; const AName, AValue: string);
 begin
-  if ADupAllowed then
-    FParams.Add(TParamEntry.Create(AName, AValue))
-  else
+  AParams.Add(TParamEntry.Create(AName, AValue));
+end;
+
+procedure TBaseParams.Add(const AName, AValue: string; ADupAllowed: Boolean);
+var
+  I, LCapacity: NativeInt;
+  P: PParamEntry;
+begin
+  if not ADupAllowed then
+  begin
     SetParam(AName, AValue);
+    Exit;
+  end;
+  I := FParams.Count;
+  {$IFDEF DELPHI}
+    {$IF CompilerVersion >= 35.0}
+    // D11+ 的 Capacity 经 List getter 返回托管数组；借公开 PList 只读长度。
+    LCapacity := Length(FParams.PList^);
+    {$ELSE}
+    LCapacity := FParams.Capacity;
+    {$IFEND}
+  {$ELSE}
+  LCapacity := FParams.Capacity;
+  {$ENDIF}
+  if (I >= LCapacity) or Assigned(FParams.OnNotify) then
+  begin
+    _AddParamItem(FParams, AName, AValue);
+    Exit;
+  end;
+  // 已有容量的新槽由 RTL 清零；此处不扩容、不回调，字符串参数的现有别名仍有效。
+  // 只建立最终字段引用，不制造 raw 来源，也不产生整记录中转。
+  FParams.Count := I + 1;
+  P := _ParamData(FParams);
+  Inc(P, I);
+  P^.Name := AName;
+  P^.Value := AValue;
+  P^.HasRawValue := False;
 end;
 
 procedure TBaseParams.Add(const AEncodedParams: string);
@@ -1782,7 +1817,7 @@ var
   // 下标从 0 开始，End 均为不包含的右边界；单位随 ABytes 选择字节或 UTF-16 码元。
   I, J, LStart, LEnd, LColon, LValueStart, LValueEnd, LOldCount: Integer;
   C: Char;
-  LName, LValue: string;
+  LName: string;
   LControlKind: TControlHeaderKind;
   LNamePtr: PChar;
   LItem: PParamEntry;
@@ -1881,8 +1916,7 @@ begin
           LNamePtr^ := Char(PByte(AData)[J]);
           Inc(LNamePtr);
         end;
-      end else
-        SetString(LName, PChar(AData) + LStart, LColon - LStart);
+      end;
       if ABytes then
       begin
         // 每个重复项都校验原始区间，避免 GetString 剥 BOM 后把非法 CL/TE 或握手值
@@ -1911,8 +1945,6 @@ begin
       end
       else
       begin
-        // PChar 加法及 SetString 的长度均按 Char 计；复制已有文本，不制造字节来源。
-        SetString(LValue, PChar(AData) + LValueStart, LValueEnd - LValueStart);
         LItemIndex := FParams.Count;
         // 已有容量中的空槽由 RTL 保证为零；满容量仍用 Add，保持原先的扩容方式。
         if LItemIndex < FParams.Capacity then
@@ -1921,9 +1953,10 @@ begin
           LItemIndex := FParams.Add(Default(TParamEntry));
         LItem := _ParamData(FParams);
         Inc(LItem, LItemIndex);
-        // 新槽位保证全零；文本来源只提交 Name/Value，raw=nil、来源=False 不需重复赋值。
-        LItem^.Name := LName;
-        LItem^.Value := LValue;
+        // PChar 加法及长度均按 UTF-16 码元计；直接复制到最终槽，避免 Name/Value 中转。
+        // 新槽保证全零，文本入口不制造 raw 来源；任一步复制抛错仍由 finally 回滚整槽。
+        SetString(LItem^.Name, PChar(AData) + LStart, LColon - LStart);
+        SetString(LItem^.Value, PChar(AData) + LValueStart, LValueEnd - LValueStart);
       end;
     end;
     Result := True;

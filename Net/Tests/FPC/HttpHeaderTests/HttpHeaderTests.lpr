@@ -711,6 +711,10 @@ end;
 
 {$I HeaderScanWordCases.inc}
 {$I StartLineCaseCases.inc}
+{$I HeaderNameCases.inc}
+{$I RequestPathCases.inc}
+{$I RequestQueryCases.inc}
+{$I ParamMutationCases.inc}
 
 var I: Integer;
 begin
@@ -718,13 +722,16 @@ begin
     if ParamStr(1) = 'server' then Server
     else if ParamStr(1) = 'client' then Client
     else begin
-      Writeln('entries'); TestEntries; Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
+      Writeln('entries'); TestEntries; Inc(Checks, RunParamMutationTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
       Writeln('header-encoding'); TestHeaderEncoding;
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
       Writeln('control-headers'); TestControlHeaders;
       Writeln('decode-bounds'); TestDecodeBounds;
       Writeln('header-scan-word'); Inc(Checks, RunHeaderScanWordTests);
       Writeln('startline-case'); Inc(Checks, RunStartLineCaseTests);
+      Writeln('header-names'); Inc(Checks, RunHeaderNameTests);
+      Writeln('request-paths'); Inc(Checks, RunRequestPathTests);
+      Writeln('request-query'); Inc(Checks, RunRequestQueryTests);
       {$IFDEF MSWINDOWS}Writeln('decode-guard'); TestDecodeGuard;{$ENDIF}
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');

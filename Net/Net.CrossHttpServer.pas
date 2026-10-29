@@ -4916,6 +4916,27 @@ end;
 
 {$ENDIF}
 
+// AData/ASize 是按原始分隔符截取的单个 query 名称或值，长度以字节计。
+// 始终先 GetString，保留 BOM、UTF-8 探测及回退；不从已解码的完整 query 切片。
+function _DecodeQueryPart(const AData: PByte; const ASize: Integer): string;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := TUtils.GetString(AData, ASize);
+  for I := 1 to Length(Result) do
+  begin
+    C := Result[I];
+    // 只有无需URL解码的ASCII文本可直接沿用结果，省掉两份字节数组和一次字符串重建。
+    // 非ASCII（含代理码元）、百分号和加号保持原转换，不能跳过回退/替换或转义处理。
+    if (Ord(C) > 127) or (C = '%') or (C = '+') then
+    begin
+      Result := TCrossHttpUtils.UrlDecode(Result);
+      Exit;
+    end;
+  end;
+end;
+
 function TCrossHttpRequest.ParseHeader(const ADataPtr: Pointer;
   const ADataSize: Integer): Boolean;
 var
@@ -4973,7 +4994,13 @@ begin
     FRawPathAndQuery := TUtils.GetString(P + LTargetStart, LTargetEnd - LTargetStart);
     K := LTargetStart;
     while (K < LTargetEnd) and (P[K] <> Ord('?')) do Inc(K);
-    FRawPath := TUtils.GetString(P + LTargetStart, K - LTargetStart);
+    // 没有原始问号时，path 与完整目标是同一字节区间，复用刚完成的 GetString。
+    // 字符串按值共享且写时复制；适用于任意路径，不依赖固定路径或头名称。
+    // 存在问号（包括空 query）时仍独立解码 path，保留各区间的 BOM/回退语义。
+    if K = LTargetEnd then
+      FRawPath := FRawPathAndQuery
+    else
+      FRawPath := TUtils.GetString(P + LTargetStart, K - LTargetStart);
     FRawQueryText := '';
     FQueryText := '';
     FQuery.Clear;
@@ -4994,14 +5021,14 @@ begin
         if K >= LTargetEnd then Break;
         LStart := K;
         while (K < LTargetEnd) and (P[K] <> Ord('=')) and (P[K] <> Ord('&')) do Inc(K);
-        LName := TCrossHttpUtils.UrlDecode(TUtils.GetString(P + LStart, K - LStart));
+        LName := _DecodeQueryPart(P + LStart, K - LStart);
         LValue := '';
         if (K < LTargetEnd) and (P[K] = Ord('=')) then
         begin
           Inc(K);
           LStart := K;
           while (K < LTargetEnd) and (P[K] <> Ord('&')) do Inc(K);
-          LValue := TCrossHttpUtils.UrlDecode(TUtils.GetString(P + LStart, K - LStart));
+          LValue := _DecodeQueryPart(P + LStart, K - LStart);
         end;
         FQuery.Add(LName, LValue, True);
       end;

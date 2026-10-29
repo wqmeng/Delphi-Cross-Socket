@@ -64,6 +64,7 @@ def build(target, output, checked):
     files = [REPO / 'Net' / name for name in ('Net.CrossHttpParams.pas', 'Net.CrossHttpUtils.pas',
              'Net.CrossHttpClient.pas', 'Net.CrossHttpServer.pas', 'Net.CrossHttpParser.pas')]
     files += [HERE / 'HttpHeaderTests.lpr', HERE / 'run_tests.py', REPO / 'Utils/Utils.Utils.pas']
+    files += sorted(HERE.glob('*.inc'))
     metadata = {'command': list(map(str, args)), 'checked': checked,
                 'sources': {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
                 'binary_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(), 'binary_bytes': exe.stat().st_size}
@@ -120,7 +121,9 @@ def client(exe, case):
                     for value in response:
                         try:
                             conn.sendall(bytes([value]))
-                        except (BrokenPipeError, ConnectionResetError):
+                        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                            # 对端提前拒绝非法头时，Windows 可能报告 reset 或 abort；
+                            # 是否符合预期仍由下面客户端退出码及结果检查决定。
                             break
             text = decode(p.communicate(timeout=10)[0])
             assert p.returncode == 0 and 'PASS ' in text, text

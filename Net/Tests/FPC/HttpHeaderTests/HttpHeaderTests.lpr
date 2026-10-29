@@ -712,6 +712,8 @@ end;
 {$I HeaderScanWordCases.inc}
 {$I StartLineCaseCases.inc}
 {$I HeaderNameCases.inc}
+{$I HeaderEncodeCases.inc}
+{$I ResponseCookieOutputCases.inc}
 {$I RequestPathCases.inc}
 {$I RequestQueryCases.inc}
 {$I ParamMutationCases.inc}
@@ -723,7 +725,7 @@ begin
     else if ParamStr(1) = 'client' then Client
     else begin
       Writeln('entries'); TestEntries; Inc(Checks, RunParamMutationTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
-      Writeln('header-encoding'); TestHeaderEncoding;
+      Writeln('header-encoding'); TestHeaderEncoding; Inc(Checks, RunHeaderEncodeTests);
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
       Writeln('control-headers'); TestControlHeaders;
       Writeln('decode-bounds'); TestDecodeBounds;
@@ -735,6 +737,9 @@ begin
       {$IFDEF MSWINDOWS}Writeln('decode-guard'); TestDecodeGuard;{$ENDIF}
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');
+      // Feed会直接累计全局断言；先取得局部计数，避免Inc求值顺序覆盖函数内部的增量。
+      I := RunResponseCookieOutputTests;
+      Inc(Checks, I);
       for I := 0 to 4 do TestServerOutput(I);
     end;
     Writeln('PASS checks=', Checks);

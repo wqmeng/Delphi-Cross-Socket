@@ -5753,11 +5753,20 @@ begin
       and (FStatusCode >= 200) and (FStatusCode < 300)));
 end;
 
+// 仅在响应确有Cookie时进入，不内联：把枚举器和含四个托管字符串的记录限制在此处。
+// AHeader 已有状态行；直接追加，保持Cookie顺序、校验异常和后续Header.Encode的先后关系。
+procedure _AppendResponseCookies(var AHeader: string; const ACookies: TResponseCookies);
+var
+  LCookie: TResponseCookie;
+begin
+  for LCookie in ACookies do
+    AHeader := AHeader + HEADER_SETCOOKIE + ': ' + LCookie.Encode + #13#10;
+end;
+
 function TCrossHttpResponse._CreateHeader(const ABodySize: Int64;
   AChunked: Boolean): TBytes;
 var
   LHeaderStr, LStatusText, LHttpVersion: string;
-  LCookie: TResponseCookie;
   LLengths: TArray<string>;
   LLength, LValue: string;
   C: Char;
@@ -5837,9 +5846,9 @@ begin
   LHeaderStr := LHttpVersion + ' ' + FStatusCode.ToString + ' ' +
     LStatusText + #13#10;
 
-  // Set-Cookie 独立于 FHeader 拼接；编码错误须向外传播，不能跳过坏 Cookie 继续发送。
-  for LCookie in FCookies do
-    LHeaderStr := LHeaderStr + HEADER_SETCOOKIE + ': ' + LCookie.Encode + #13#10;
+  // 空集合不创建枚举器或Cookie临时记录；非空时仍按原顺序编码，错误继续向外传播。
+  if FCookies.Count > 0 then
+    _AppendResponseCookies(LHeaderStr, FCookies);
 
   LHeaderStr := LHeaderStr + FHeader.Encode;
 

@@ -1018,6 +1018,21 @@ begin
   {$ENDIF}
 end;
 
+// 只读取容量，不产生后备数组的托管临时引用；不改变扩容策略或持有元素地址。
+// 与 _ParamData 一样只借用 RTL 公开入口，旧 Delphi/FPC 保留原 Capacity 实现。
+function _ParamCapacity(const AParams: TList<TParamEntry>): NativeInt; inline;
+begin
+  {$IFDEF DELPHI}
+    {$IF CompilerVersion >= 35.0}
+    Result := Length(AParams.PList^);
+    {$ELSE}
+    Result := AParams.Capacity;
+    {$IFEND}
+  {$ELSE}
+  Result := AParams.Capacity;
+  {$ENDIF}
+end;
+
 
 {$IFDEF CROSS_SESSION_TESTS}
 procedure SetSessionTestOptions(const AOptions: TSessionTestOptions);
@@ -1245,16 +1260,7 @@ begin
     Exit;
   end;
   I := FParams.Count;
-  {$IFDEF DELPHI}
-    {$IF CompilerVersion >= 35.0}
-    // D11+ 的 Capacity 经 List getter 返回托管数组；借公开 PList 只读长度。
-    LCapacity := Length(FParams.PList^);
-    {$ELSE}
-    LCapacity := FParams.Capacity;
-    {$IFEND}
-  {$ELSE}
-  LCapacity := FParams.Capacity;
-  {$ENDIF}
+  LCapacity := _ParamCapacity(FParams);
   if (I >= LCapacity) or Assigned(FParams.OnNotify) then
   begin
     _AddParamItem(FParams, AName, AValue);
@@ -1928,7 +1934,7 @@ begin
         // Add 可能扩容，必须之后重新取得槽位；失败时零记录由外层 finally 一并回滚。
         LItemIndex := FParams.Count;
         // 已有容量中的空槽由 RTL 保证为零；满容量仍用 Add，保持原先的扩容方式。
-        if LItemIndex < FParams.Capacity then
+        if LItemIndex < _ParamCapacity(FParams) then
           FParams.Count := LItemIndex + 1
         else
           LItemIndex := FParams.Add(Default(TParamEntry));
@@ -1947,7 +1953,7 @@ begin
       begin
         LItemIndex := FParams.Count;
         // 已有容量中的空槽由 RTL 保证为零；满容量仍用 Add，保持原先的扩容方式。
-        if LItemIndex < FParams.Capacity then
+        if LItemIndex < _ParamCapacity(FParams) then
           FParams.Count := LItemIndex + 1
         else
           LItemIndex := FParams.Add(Default(TParamEntry));
@@ -2000,29 +2006,73 @@ begin
 end;
 
 function THttpHeader.Encode: string;
+const
+  {$IF DEFINED(DELPHI) AND DEFINED(CPU64)}
+  // Delphi 的 UnicodeString SetLength 在64位下仍以 Integer 接收字符数。
+  MAX_HEADER_LENGTH = High(Integer);
+  {$ELSE}
+  // 保证码元数转换为 Move 的字节数时不发生 NativeInt 溢出。
+  MAX_HEADER_LENGTH = High(NativeInt) div SizeOf(Char);
+  {$ENDIF}
 var
-  I: Integer;
+  I, LLength, LNameLength, LValueLength: NativeInt;
   LValidUtf16: Boolean;
   P: PParamEntry;
+  LDest: PChar;
 begin
+  // 保留原入口的清空语义，不借用调用方隐藏结果槽中的旧输出缓冲。
   Result := '';
+  // 空集合只有结束空行，保持原来的常量字符串结果，无需分配可写缓冲区。
+  if FParams.Count = 0 then Exit(#13#10);
+  LLength := 2;
   LValidUtf16 := True;
   P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
   begin
-    // 非法项必须使整块生成失败，不能丢弃 CL/TE 或握手等关键字段后继续发送。
+    // 保持逐项 Name→Value 的检查顺序，坏代理延迟到所有字段合法性检查之后报告。
     if not TCrossHttpUtils.IsValidHeaderName(P^.Name) then
       raise EConvertError.Create('Invalid HTTP header field');
-    // 一次遍历同时检查值字符和代理配对，避免构造后再扫描整个字段块。
     _CheckHeaderValue(P^.Value, LValidUtf16);
-    // 发送始终使用当前字符串，原始字节仅供查看。
-    Result := Result + P^.Name + ': ' + P^.Value + #13#10;
+    LNameLength := Length(P^.Name);
+    LValueLength := Length(P^.Value);
+    // 每行另需 ": " 和 CRLF 共4个码元；先减法判界，再累加，兼容溢出检查开启。
+    if (LLength > MAX_HEADER_LENGTH - 4)
+      or (LNameLength > MAX_HEADER_LENGTH - LLength - 4) then
+      raise EOutOfMemory.Create('HTTP header is too large');
+    Inc(LLength, LNameLength + 4);
+    if LValueLength > MAX_HEADER_LENGTH - LLength then
+      raise EOutOfMemory.Create('HTTP header is too large');
+    Inc(LLength, LValueLength);
     Inc(P);
   end;
-  Result := Result + #13#10;
-  // Name 已限定为 ASCII token，固定分隔符也为 ASCII；只需汇总各值的检查结果。
   if not LValidUtf16 then
     raise EConvertError.Create('Invalid UTF-16 in HTTP header');
+
+  // 一次申请最终长度。下面只复制已校验的字段，不再逐行扩容或重复复制前缀。
+  // SetLength先成功再取得写指针；没有集合突变/回调，且输出不与任何字段字符串共享。
+  SetLength(Result, LLength);
+  LDest := PChar(Result);
+  P := _ParamData(FParams);
+  for I := 0 to FParams.Count - 1 do
+  begin
+    LNameLength := Length(P^.Name);
+    LValueLength := Length(P^.Value);
+    Move(PChar(P^.Name)^, LDest^, LNameLength * SizeOf(Char));
+    Inc(LDest, LNameLength);
+    LDest^ := ':'; Inc(LDest);
+    LDest^ := ' '; Inc(LDest);
+    // 空值不读取源指针；发送始终使用当前 Value，原始字节仅供查看。
+    if LValueLength > 0 then
+    begin
+      Move(PChar(P^.Value)^, LDest^, LValueLength * SizeOf(Char));
+      Inc(LDest, LValueLength);
+    end;
+    LDest^ := #13; Inc(LDest);
+    LDest^ := #10; Inc(LDest);
+    Inc(P);
+  end;
+  LDest^ := #13; Inc(LDest);
+  LDest^ := #10;
 end;
 
 { TDelimitParams }

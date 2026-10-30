@@ -22,7 +22,7 @@ def hashes(override,session_only=False):
     return {p.relative_to(REPO).as_posix():hashlib.sha256(
         (override/p.name if override and (override/p.name).is_file() else p).read_bytes()).hexdigest() for p in paths}
 
-def build(target,label,override,debug=False,session_only=False):
+def build(target,label,override,debug=False,session_only=False,checked=False):
     out=HERE/'bin'/label/target;units=HERE/'lib'/label/target
     out.mkdir(parents=True,exist_ok=True);units.mkdir(parents=True,exist_ok=True);before=hashes(override,session_only)
     linux='linux' in target;search=([override] if override else [])+[REPO/'Net',REPO/'Utils',REPO/'DelphiToFPC']
@@ -45,6 +45,8 @@ def build(target,label,override,debug=False,session_only=False):
             libs=[D/'lib/linux64/release',SDK/'usr/lib/x86_64-linux-gnu',SDK/'lib/x86_64-linux-gnu',SDK/'usr/lib/gcc/x86_64-linux-gnu/11']
             args+=['--syslibroot:'+str(SDK),'--libpath:'+';'.join(map(str,libs))]
         args+=[HERE/'BatchCleanupTests.dpr']
+    if checked:
+        args[1:1]=['-Cr','-Co','-Ci','-Sa'] if target.startswith('fpc') else ['-$R+','-$Q+','-$I+','-$C+']
     r=subprocess.run(list(map(str,args)),cwd=HERE,capture_output=True,timeout=120,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     (out/'build.log').write_bytes(r.stdout+r.stderr)
     if r.returncode:print((r.stdout+r.stderr).decode(errors='replace')[-7000:]);return False
@@ -117,6 +119,7 @@ if __name__=='__main__':
     p.add_argument('--label',default='before');p.add_argument('--source',type=Path)
     p.add_argument('--run-only',action='store_true');p.add_argument('--build-only',action='store_true')
     p.add_argument('--debug',action='store_true')
+    p.add_argument('--checked',action='store_true',help='启用范围/溢出/I/O/断言检查，不改变默认构建')
     p.add_argument('--session-only',action='store_true');p.add_argument('--sparse-only',action='store_true')
     p.add_argument('--tail-only',action='store_true')
     p.add_argument('--check-sparse-alloc',action='store_true',help='0/1过期场景不得出现整表规模的RTL申请')
@@ -124,6 +127,6 @@ if __name__=='__main__':
     o=p.parse_args();ok=True
     if o.source:o.source=o.source.resolve()
     for target in o.targets:
-        if not o.run_only and not build(target,o.label,o.source,o.debug,o.session_only):ok=False;continue
+        if not o.run_only and not build(target,o.label,o.source,o.debug,o.session_only,o.checked):ok=False;continue
         if not o.build_only:ok=run(target,o) and ok
     raise SystemExit(0 if ok else 1)

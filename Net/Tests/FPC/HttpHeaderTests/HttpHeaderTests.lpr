@@ -5,8 +5,8 @@ uses
   {$IF DEFINED(FPC) AND DEFINED(POSIX)}cthreads, cwstring,{$ENDIF}
   {$IFDEF MSWINDOWS}Windows,{$ENDIF}
   SysUtils, Classes, SyncObjs, Net.CrossHttpParams, Net.CrossHttpUtils,
-  Net.CrossHttpServer, Net.CrossHttpClient, Net.CrossSocket.Base, Net.SocketAPI,
-  Utils.Utils, Utils.StrUtils;
+  Net.CrossHttpServer, Net.CrossHttpClient, Net.CrossHttpParser, Net.CrossSocket.Base, Net.SocketAPI,
+  Utils.Utils, Utils.StrUtils, Utils.RegEx, Utils.IOUtils;
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
@@ -775,8 +775,10 @@ end;
 {$I ParamAssignCases.inc}
 {$I RouteMatchCases.inc}
 {$I RoutePathCases.inc}
+{$I ParserHeaderCases.inc}
 {$I LookupCases.inc}
 {$I HtmlEncodeCases.inc}
+{$I MultipartHeaderCases.inc}
 
 var I: Integer;
 begin
@@ -788,6 +790,7 @@ begin
       Inc(Checks, RunParamAssignTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
       Writeln('header-encoding'); TestHeaderEncoding; Inc(Checks, RunHeaderEncodeTests);
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
+      Writeln('multipart-headers'); Inc(Checks, RunMultipartHeaderTests);
       Writeln('control-headers'); TestControlHeaders; Inc(Checks, RunChunkedMetadataTests);
       Writeln('decode-bounds'); TestDecodeBounds;
       Writeln('header-scan-word'); Inc(Checks, RunHeaderScanWordTests);
@@ -796,6 +799,7 @@ begin
       Writeln('request-paths'); Inc(Checks, RunRequestPathTests);
       Writeln('route-match'); Inc(Checks, RunRouteMatchTests);
       Writeln('route-path'); Inc(Checks, RunRoutePathTests);
+      Writeln('parser-header'); I := RunParserHeaderTests; Inc(Checks, I);
       Writeln('lookups'); Inc(Checks, RunLookupTests);
       Writeln('html-encode'); Inc(Checks, RunHtmlEncodeTests);
       Writeln('request-query'); Inc(Checks, RunRequestQueryTests);

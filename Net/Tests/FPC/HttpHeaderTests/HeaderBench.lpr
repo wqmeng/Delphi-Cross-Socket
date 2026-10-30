@@ -3,11 +3,11 @@
 {$IFNDEF FPC}{$APPTYPE CONSOLE}{$ENDIF}
 uses
   SysUtils, Classes, Windows, Net.CrossHttpParams, Net.CrossHttpServer,
-  Net.CrossHttpClient, Net.CrossHttpUtils, Net.CrossSocket.Base, Net.SocketAPI, Utils.StrUtils;
+  Net.CrossHttpClient, Net.CrossHttpUtils, Net.CrossHttpParser, Net.CrossSocket.Base, Net.SocketAPI, Utils.StrUtils, Utils.RegEx, Utils.IOUtils;
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
-  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode, bmAssign, bmCompressChoice, bmRouteMatch, bmStatusText, bmMimeType, bmResponseCookies, bmDockKey, bmServerCookies, bmHtmlEncode, bmRoutePath, bmClientEncode);
+  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode, bmAssign, bmCompressChoice, bmRouteMatch, bmStatusText, bmMimeType, bmResponseCookies, bmDockKey, bmServerCookies, bmHtmlEncode, bmRoutePath, bmClientEncode, bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte, bmClientPool, bmMultipartDecode, bmClientTimeout);
   {$IFDEF FPC}
   TBenchManager = TMemoryManager;
   TBenchSize = PtrUInt;
@@ -59,6 +59,16 @@ begin
   Result := True;
 end;
 
+{$I HeaderParserBench.inc}
+{$I MultipartDecodeBench.inc}
+
+{$IFDEF CLIENT_POOL_BENCH}
+{$I ClientPoolChecks.inc}
+{$IFDEF CLIENT_TIMEOUT_BENCH}
+{$I ClientTimeoutChecks.inc}
+{$ENDIF}
+{$ENDIF}
+
 {$IFDEF DOCK_KEY_BENCH}
 {$I DockKeyChecks.inc}
 {$ENDIF}
@@ -90,6 +100,13 @@ var
   Allocations, Valid: Boolean;
   ExpectedCompressType, SelectedCompressType: TCompressType;
   RouteTree: TCrossHttpRouterTree;
+  ParserBench: THeaderParserBench;
+  MultipartForm: TMultipartMemoryBench;
+  MultipartData: TBytes;
+  MultipartCount, MultipartFiles: Integer;
+  MultipartDirectory: string;
+  MultipartDirectoryOwned: Boolean;
+  MultipartID: TGUID;
   StaticRouter, WildcardRouter, RegexRouter, ExpectedRouter, MatchedRouter: IRouter;
   RouteSegments, ExpectedSegments: TArray<string>;
   RoutePath: string;
@@ -105,6 +122,17 @@ var
   CookieConnection: ICrossHttpClientConnection;
   CookieLiveBefore, ExpectedCookieCount: Integer;
   CookieName, CookieValue, CookieFixture: string;
+  {$ENDIF}
+  {$IFDEF CLIENT_POOL_BENCH}
+  PoolFixture: TClientPoolFixture;
+  PoolExpected, PoolSelected: ICrossHttpClientConnection;
+  PoolShape: string;
+  PoolCount: Integer;
+  {$ENDIF}
+  {$IFDEF CLIENT_TIMEOUT_BENCH}
+  TimeoutFixture: TClientTimeoutFixture;
+  TimeoutShape: string;
+  TimeoutCount, TimeoutHookCalls: Integer;
   {$ENDIF}
   {$IFDEF CLIENT_ENCODE_BENCH}
   ClientRequestObj: TCrossHttpClientRequest;
@@ -234,8 +262,48 @@ var
   var J: Integer; R: TRequestAccess; Encoded: TBytes; EncodedFields: string;
     LCompressType: TCompressType;
     LMatchedRouter: IRouter;
+    LMultipartResult: TFormDataDecodeResult;
+    LConsumed: Integer;
   begin
+    if Mode in [bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte] then
+      ParserBench.ClearCounts;
+    if Mode = bmMultipartDecode then MultipartForm.FileStreams := 0;
     case Mode of
+      {$IFDEF CLIENT_TIMEOUT_BENCH}
+      bmClientTimeout: for J := 1 to Count do
+        begin
+          // 只调用既有完整扫描入口；不复制分类器，不在循环中修改状态或禁用阈值。
+          ProcHttpTimeoutForTest(TimeoutFixture.Client, nil);
+          Inc(Checksum);
+        end;
+      {$ENDIF}
+      bmMultipartDecode: for J := 1 to Count do
+        begin
+          // InitWithBoundary本身清理上一份结果；不再额外Clear，完整解析与清理成本都计入。
+          MultipartForm.InitWithBoundary(MULTIPART_BENCH_BOUNDARY);
+          LMultipartResult := MultipartForm.Decode(Pointer(MultipartData), Length(MultipartData), LConsumed);
+          Check((LMultipartResult = frComplete) and (LConsumed = Length(MultipartData))
+            and (MultipartForm.Count = MultipartCount), 'Incomplete multipart decode recorded');
+          Inc(Checksum, MultipartForm.Count);
+        end;
+      {$IFDEF CLIENT_POOL_BENCH}
+      bmClientPool: for J := 1 to Count do
+        begin
+          PoolSelected := PoolFixture.Dock.GetIdleConnection;
+          Check(PoolSelected = PoolExpected, 'Pool benchmark selected unexpected connection');
+          // 命中需要释放预占才能重复选择；这份原函数恢复成本包含在两侧计时中。
+          if PoolSelected <> nil then
+            HttpHeaderBenchPoolRelease(PoolSelected as TCrossHttpClientConnection);
+          PoolSelected := nil;
+          Inc(Checksum);
+        end;
+      {$ENDIF}
+      bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte:
+        for J := 1 to Count do
+        begin
+          ParserBench.Decode(Pointer(Data), Length(Data), Mode);
+          Inc(Checksum, Request.Header.Count);
+        end;
       bmWire: for J := 1 to Count do
         if DecodeWire then Inc(Checksum, Header.Count);
       bmString: for J := 1 to Count do
@@ -303,6 +371,14 @@ var
       bmServerEncode, bmServerCookies: for J := 1 to Count do
         begin Encoded := HttpHeaderBenchCreate(ServerResponse, 165); Inc(Checksum, Length(Encoded)); end;
     end;
+    if Mode in [bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte] then
+      ParserBench.CheckCounts(Count, Length(Data));
+    if Mode = bmMultipartDecode then
+      Check(MultipartForm.FileStreams = NativeInt(Count) * MultipartFiles, 'Multipart file branch count mismatch');
+    {$IFDEF CLIENT_POOL_BENCH}
+    if (Mode = bmClientPool) and (PoolExpected <> nil) then
+      Check(HttpSendTestPendingRequests(PoolExpected) = 0, 'Pool reservation was not released');
+    {$ENDIF}
   end;
 begin
   if ParamStr(1) = 'wire' then Mode := bmWire
@@ -327,6 +403,12 @@ begin
   else if ParamStr(1) = 'server-cookies' then Mode := bmServerCookies
   else if ParamStr(1) = 'html-encode' then Mode := bmHtmlEncode
   else if ParamStr(1) = 'client-encode' then Mode := bmClientEncode
+  else if ParamStr(1) = 'client-pool' then Mode := bmClientPool
+  else if ParamStr(1) = 'multipart-decode' then Mode := bmMultipartDecode
+  else if ParamStr(1) = 'client-timeout' then Mode := bmClientTimeout
+  else if ParamStr(1) = 'parser-header' then Mode := bmParserHeader
+  else if ParamStr(1) = 'parser-header-split' then Mode := bmParserHeaderSplit
+  else if ParamStr(1) = 'parser-header-byte' then Mode := bmParserHeaderByte
   else raise Exception.Create('Unknown benchmark');
   N := StrToInt(ParamStr(3)); Check(N > 0, 'Invalid count');
   Allocations := ParamStr(4) = 'alloc';
@@ -344,6 +426,7 @@ begin
     if (Data[I] = 13) and (Data[I+1] = 10) and (Data[I+2] = 13) and (Data[I+3] = 10) then
     begin HeaderEnd := I+4; Break; end;
   Check((LineEnd > 0) and (HeaderEnd > LineEnd), 'Fixture has no complete header');
+  if Mode = bmMultipartDecode then MultipartData := Copy(Data, HeaderEnd, Length(Data) - HeaderEnd);
   SetLength(Data, HeaderEnd); // ParseHeader 不接收正文；保留 Content-Length 元数据供验证。
   HeaderData := Copy(Data, LineEnd+2, HeaderEnd-LineEnd-2);
   HeaderText := TEncoding.UTF8.GetString(HeaderData);
@@ -362,6 +445,11 @@ begin
   RequestOwner := Request;
   ServerResponse := nil;
   RouteTree := nil;
+  ParserBench := nil;
+  MultipartForm := nil;
+  MultipartDirectoryOwned := False;
+  {$IFDEF CLIENT_POOL_BENCH}PoolFixture := nil;{$ENDIF}
+  {$IFDEF CLIENT_TIMEOUT_BENCH}TimeoutFixture := nil;{$ENDIF}
   {$IFDEF COOKIE_RESPONSE_BENCH}
   CookieClientObj := nil;
   CookieLiveBefore := 0;
@@ -378,6 +466,109 @@ begin
     ExpectedPath := TCrossHttpUtils.UrlDecode(Target);
     try
       case Mode of
+      bmClientTimeout:
+        begin
+          {$IFDEF CLIENT_TIMEOUT_BENCH}
+          if N = 1 then Writeln('TIMEOUT_CHECKS ', RunClientTimeoutChecks);
+          TimeoutShape := ExtractFileName(ParamStr(2));
+          if TimeoutShape = 'timeout-empty.bin' then TimeoutCount := 0
+          else if TimeoutShape = 'timeout-idle1.bin' then TimeoutCount := 1
+          else if TimeoutShape = 'timeout-mixed64.bin' then TimeoutCount := 64
+          else
+          begin
+            Check(TimeoutShape = 'timeout-mixed512.bin', 'Unsupported timeout fixture');
+            TimeoutCount := 512;
+          end;
+          TimeoutFixture := TClientTimeoutFixture.Create(TimeoutCount);
+          for I := 0 to TimeoutCount - 1 do
+          begin
+            HttpHeaderBenchTimeoutSent(TimeoutFixture.Connections[I] as TCrossHttpClientConnection, False);
+            case I mod 4 of
+              0: HttpHeaderBenchPoolRelease(TimeoutFixture.Connections[I] as TCrossHttpClientConnection);
+              1: HttpHeaderBenchPoolState(TimeoutFixture.Connections[I] as TCrossHttpClientConnection, rsSending);
+              2: (TimeoutFixture.Connections[I] as TCrossHttpClientConnection).ConnectStatus := csConnecting;
+              3: HttpHeaderBenchPoolState(TimeoutFixture.Connections[I] as TCrossHttpClientConnection, rsUpgraded);
+            end;
+          end;
+          TimeoutFixture.CaptureState;
+          TimeoutHookCalls := 0;
+          ProcHttpTimeoutForTest(TimeoutFixture.Client,
+            procedure
+            begin
+              // MaxInt阈值场景不应收集任何过期候选；不改变配置来掩盖错误动作。
+              Inc(TimeoutHookCalls);
+            end);
+          Check(TimeoutHookCalls = 0, 'Timeout benchmark unexpectedly collected an expired connection');
+          TimeoutFixture.CheckStable;
+          Valid := True;
+          {$ELSE}
+          raise Exception.Create('Timeout benchmark requires existing timer test entry');
+          {$ENDIF}
+        end;
+      bmMultipartDecode:
+        begin
+          // 在计时外创建本次进程独占空目录；文件part仅生成其中的路径，不打开文件。
+          Check(CreateGUID(MultipartID) = 0, 'Multipart fixture GUID creation failed');
+          // 两侧共享冻结fixture父目录，避免before/after目录名长度影响路径分配统计。
+          MultipartDirectory := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(2)))
+            + 'multipart-bench-' + GUIDToString(MultipartID);
+          Check(not DirectoryExists(MultipartDirectory), 'Multipart fixture directory already exists');
+          Check(CreateDir(MultipartDirectory), 'Multipart fixture directory creation failed');
+          MultipartDirectoryOwned := True;
+          MultipartForm := TMultipartMemoryBench.Create;
+          MultipartForm.AutoDeleteFiles := False;
+          MultipartForm.StoragePath := MultipartDirectory;
+          MultipartCount := ValidateMultipartBench(MultipartForm, MultipartData, ExtractFileName(ParamStr(2)));
+          MultipartFiles := MultipartForm.FileStreams;
+          Valid := True;
+        end;
+      bmClientPool:
+        begin
+          {$IFDEF CLIENT_POOL_BENCH}
+          // 完整行为/并发检查只在N=1的validate调用执行，不在计时进程反复创建线程。
+          if N = 1 then Writeln('POOL_CHECKS ', RunClientPoolChecks);
+          PoolShape := ExtractFileName(ParamStr(2));
+          if PoolShape = 'pool-empty.bin' then PoolCount := 0
+          else if PoolShape = 'pool-one.bin' then PoolCount := 1
+          else
+          begin
+            Check((PoolShape = 'pool-tail64.bin') or (PoolShape = 'pool-busy64.bin'),
+              'Unsupported pool fixture');
+            PoolCount := 64;
+          end;
+          PoolFixture := TClientPoolFixture.Create(PoolCount);
+          for I := 0 to PoolCount - 1 do
+            HttpHeaderBenchPoolState(PoolFixture.Connections[I] as TCrossHttpClientConnection, rsSending);
+          if (PoolShape = 'pool-one.bin') or (PoolShape = 'pool-tail64.bin') then
+          begin
+            PoolExpected := PoolFixture.Connections[PoolCount - 1];
+            HttpHeaderBenchPoolState(PoolExpected as TCrossHttpClientConnection, rsIdle);
+            HttpHeaderBenchPoolRelease(PoolExpected as TCrossHttpClientConnection);
+          end;
+          PoolSelected := PoolFixture.Dock.GetIdleConnection;
+          Valid := PoolSelected = PoolExpected;
+          if PoolSelected <> nil then
+          begin
+            Check(HttpSendTestPendingRequests(PoolSelected) = 1, 'Pool validation did not claim once');
+            HttpHeaderBenchPoolRelease(PoolSelected as TCrossHttpClientConnection);
+            Check(HttpSendTestPendingRequests(PoolSelected) = 0, 'Pool validation release failed');
+          end;
+          PoolSelected := nil;
+          {$ELSE}
+          raise Exception.Create('Client pool benchmark requires existing test factory');
+          {$ENDIF}
+        end;
+      bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte:
+        begin
+          // 只接受无正文GET，避免将截下的头当作完整消息，或强制NoBody跳过真实定界。
+          Check(Copy(FirstLine, 1, 4) = 'GET ', 'Parser benchmark requires GET');
+          Check(not Expected.ExistsParam('Content-Length')
+            and not Expected.ExistsParam('Transfer-Encoding'), 'Parser fixture must have no body');
+          ParserBench := THeaderParserBench.Create(Request);
+          ParserBench.Decode(Pointer(Data), Length(Data), Mode);
+          ParserBench.CheckCounts(1, Length(Data));
+          Valid := ValidRequest(Request);
+        end;
       bmWire: Valid := DecodeWire and SameParams(Header, Expected);
       bmString: Valid := Header.Decode(HeaderText) and SameParams(Header, Expected);
       bmRequest, bmNewRequest: Valid := Request.ParseHeader(Pointer(Data), Length(Data)) and ValidRequest(Request);
@@ -726,10 +917,24 @@ begin
     {$IFDEF HEADER_BYTES}EntrySize := SizeOf(TParamEntry);{$ELSE}EntrySize := SizeOf(TNameValue);{$ENDIF}
     RawBytes := 0;
     {$IFDEF HEADER_BYTES}
-    if Mode in [bmRequest, bmNewRequest] then
+    if Mode in [bmRequest, bmNewRequest, bmParserHeader, bmParserHeaderSplit, bmParserHeaderByte] then
       for I := 0 to Request.Header.Count-1 do Inc(RawBytes, Length(Request.Header.Items[I].RawValue))
     else if Mode in [bmWire, bmAssign] then
       for I := 0 to Header.Count-1 do Inc(RawBytes, Length(Header.Items[I].RawValue));
+    {$ENDIF}
+    {$IFDEF CLIENT_TIMEOUT_BENCH}
+    if Mode = bmClientTimeout then
+      Writeln('VALID timeout_connections=', TimeoutCount, ' threshold_seconds=', MaxInt, ' expired=0')
+    else
+    {$ENDIF}
+    if Mode = bmMultipartDecode then
+      Writeln('VALID multipart_parts=', MultipartCount, ' file_streams=', MultipartFiles,
+        ' body_bytes=', Length(MultipartData), ' storage_chars=', Length(MultipartDirectory), ' file_disk_io=0')
+    else
+    {$IFDEF CLIENT_POOL_BENCH}
+    if Mode = bmClientPool then
+      Writeln('VALID pool_connections=', PoolCount, ' expected_hit=', Ord(PoolExpected <> nil))
+    else
     {$ENDIF}
     if Mode = bmServerCookies then
       Writeln('VALID response_cookies=', ServerCookieCount, ' input_fields=', Expected.Count)
@@ -744,7 +949,9 @@ begin
     // 纯语义验证不预热、不计时，便于在其它候选准备期间检查 fixture 与所有权。
     if ParamStr(4) = 'validate' then begin Writeln('VALID_ONLY'); Exit; end;
     UnitChecksum := Expected.Count;
-    if Mode = bmEncode then UnitChecksum := Length(EncodeHeader)
+    if Mode = bmMultipartDecode then UnitChecksum := MultipartCount
+    else if Mode in [bmClientPool, bmClientTimeout] then UnitChecksum := 1
+    else if Mode = bmEncode then UnitChecksum := Length(EncodeHeader)
     else if Mode = bmEncodeLegacy then UnitChecksum := Length(EncodeLegacyHeader)
     else if Mode = bmFieldEncode then UnitChecksum := Length(Expected.Encode)
     else if Mode = bmQueryEncode then UnitChecksum := Length(ExpectedQuery.Encode)
@@ -767,15 +974,38 @@ begin
     ;
     // 只复用对象；TList.Clear 在两个 RTL 都释放容量，不能把它写成容量复用。
     Checksum := 0; Run(2000); // 同进程预热分支和页。
+    {$IFDEF CLIENT_TIMEOUT_BENCH}
+    if Mode = bmClientTimeout then TimeoutFixture.CheckStable;
+    {$ENDIF}
     Checksum := 0;
     if Allocations then StartCounting;
     try
       QueryPerformanceCounter(BeginTick); Run(N); QueryPerformanceCounter(EndTick);
     finally if Allocations then StopCounting; end;
+    {$IFDEF CLIENT_TIMEOUT_BENCH}
+    if Mode = bmClientTimeout then TimeoutFixture.CheckStable;
+    {$ENDIF}
     Check(Checksum = Int64(N) * UnitChecksum, 'Incomplete work recorded');
     Writeln(Format('METRIC n=%d us=%.3f calls=%d bytes=%d checksum=%d',
       [N, (EndTick-BeginTick)*1000000.0/Frequency, AllocationCalls, AllocationBytes, Checksum]));
   finally
+    {$IFDEF CLIENT_TIMEOUT_BENCH}
+    TimeoutFixture.Free;
+    {$ENDIF}
+    {$IFDEF CLIENT_POOL_BENCH}
+    PoolSelected := nil;
+    PoolExpected := nil;
+    PoolFixture.Free;
+    {$ENDIF}
+    try
+      MultipartForm.Free;
+    finally
+      // 只删除已创建的空目录；发现意外文件就报错，不能递归删除掩盖泄漏。
+      if MultipartDirectoryOwned then
+        Check(RemoveDir(MultipartDirectory), 'Multipart fixture directory is not empty or cannot be removed');
+    end;
+    // Parser回调借用Request，必须先释放适配器，再释放请求/连接接口。
+    ParserBench.Free;
     RouteTree.Free;
     ServerResponseOwner := nil; ServerResponse := nil; Response.Free;
     {$IFDEF CLIENT_ENCODE_BENCH}

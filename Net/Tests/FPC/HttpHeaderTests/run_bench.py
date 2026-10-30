@@ -59,6 +59,15 @@ EXTRA_CASES += [('html-encode', fixture) for fixture in ('html-plain', 'html-mar
 EXTRA_CASES += [('route-path', fixture) for fixture in ('path-short', 'path-many', 'path-long', 'path-unicode', 'path-unsplit')]
 # 客户端完整请求头生成，构造/URL解析在计时外；只显式选择。
 EXTRA_CASES += [('client-encode', fixture) for fixture in ('noquery', 'small', 'query-many', 'url-unicode')]
+# 外层Parser真实Decode；完整头、两段及逐字节，不改变默认all。
+EXTRA_CASES += [('parser-header', fixture) for fixture in ('small', 'many')]
+EXTRA_CASES += [('parser-header-split', 'small'), ('parser-header-byte', 'small')]
+# 真实dock选择；命中包含释放预占，构造和并发检查在计时外。
+EXTRA_CASES += [('client-pool', fixture) for fixture in ('pool-empty', 'pool-one', 'pool-tail64', 'pool-busy64')]
+# 接收multipart解析，文件流仅借现有virtual扩展点换成内存，不含磁盘I/O。
+EXTRA_CASES += [('multipart-decode', fixture) for fixture in ('mp-text-one', 'mp-text-many', 'mp-file-unicode')]
+# 真实_ProcTimeout零过期扫描，保持MaxInt阈值和真实状态，不改变默认all。
+EXTRA_CASES += [('client-timeout', fixture) for fixture in ('timeout-empty', 'timeout-idle1', 'timeout-mixed64', 'timeout-mixed512')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -166,11 +175,32 @@ def fixtures(root):
     values['html-long-tail'] = small[:-2] + b'X-Html-Text: ' + b'x' * 8192 + b'&\r\n\r\n'
     values['mime-extension-only'] = small.replace(b'/bench?a=1&b=2', b'/.txt')
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
+    for pool_shape in ('empty', 'one', 'tail64', 'busy64'):
+        values['pool-' + pool_shape] = small
+    for timeout_shape in ('empty', 'idle1', 'mixed64', 'mixed512'):
+        values['timeout-' + timeout_shape] = small
     values['query-many'] = small.replace(b'/bench?a=1&b=2', b'/bench?' + b'&'.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)))
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')
     values['url-escaped'] = small.replace(b'/bench?a=1&b=2', b'/a%2Fb%20c?key=a%26b&plus=x+y')
     values['url-unicode'] = small.replace(b'/bench?a=1&b=2', '/中文/文件?name=中文&other=值'.encode('utf-8'))
     values['url-long-tail'] = small.replace(b'/bench?a=1&b=2', b'/' + b'a' * 1024 + b'%2Fend?q=' + b'x' * 1024 + b'%20z')
+    # 完整HTTP输入只用于冻结body字节；multipart模式只计时接收表单的Init+Decode。
+    boundary = b'header-bench-multipart'
+    for multipart_shape, part_count in (('text-one', 1), ('text-many', 16), ('file-unicode', 1)):
+        if multipart_shape == 'file-unicode':
+            disposition = 'Content-Disposition: form-data; name="upload"; filename="报告😀.bin"\r\n'.encode('utf-8')
+            multipart_body = (b'--' + boundary + b'\r\n' + disposition
+                              + b'Content-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\n\r\n'
+                              + bytes(range(32)) + b'body\r\n')
+        else:
+            multipart_body = b''.join(b'--' + boundary + b'\r\n'
+                                     + f'Content-Disposition: form-data; name="field{i}"\r\n\r\nvalue-{i}\r\n'.encode('ascii')
+                                     for i in range(part_count))
+        multipart_body += b'--' + boundary + b'--\r\n'
+        values['mp-' + multipart_shape] = (b'POST /bench HTTP/1.1\r\nHost: localhost\r\n'
+                                          + b'Content-Type: multipart/form-data; boundary=' + boundary + b'\r\n'
+                                          + b'Content-Length: ' + str(len(multipart_body)).encode('ascii') + b'\r\n\r\n'
+                                          + multipart_body)
     folder = root / 'fixtures'
     folder.mkdir(exist_ok=True)
     for name, data in values.items():
@@ -185,7 +215,7 @@ def fixtures(root):
 def freeze_harness(root):
     folder = root / 'harness'
     folder.mkdir(exist_ok=False)
-    names = ['run_bench.py', 'HeaderBench.lpr', 'HeaderBench.dpr', 'HeaderMemoryBench.lpr', 'HeaderMemoryBench.dpr', 'DockKeyChecks.inc']
+    names = ['run_bench.py', 'HeaderBench.lpr', 'HeaderBench.dpr', 'HeaderMemoryBench.lpr', 'HeaderMemoryBench.dpr', 'DockKeyChecks.inc', 'HeaderParserBench.inc', 'ClientPoolChecks.inc', 'MultipartDecodeBench.inc', 'ClientTimeoutChecks.inc']
     for name in names:
         shutil.copy2(HERE / name, folder / name)
     shutil.copy2(HERE.parent / 'HttpHotPathTests/run_http_bench.py', folder / 'run_http_bench.py')
@@ -300,6 +330,9 @@ def client_overlay(source, out):
     original = (source / 'Net/Net.CrossHttpClient.pas').read_bytes()
     text = original.decode('utf-8-sig')
     declaration = 'function HttpHeaderBenchDockKey(const ASocket: TCrossHttpClientSocket; const AProtocol, AHost: string; const APort: Word): string;'
+    timeout_sent = 'procedure HttpHeaderBenchTimeoutSent(const AConnection: TCrossHttpClientConnection; const AFinished: Boolean);'
+    pool_release = 'procedure HttpHeaderBenchPoolRelease(const AConnection: TCrossHttpClientConnection);'
+    pool_state = 'procedure HttpHeaderBenchPoolState(const AConnection: TCrossHttpClientConnection; const AStatus: TRequestStatus);'
     client_declaration = 'function HttpHeaderBenchClientCreate(const AConnection: TCrossHttpClientConnection; const ARequest: TCrossHttpClientRequest): TBytes;'
     match = re.search(r'^implementation\s*$', text, re.M)
     end = text.rfind('end.')
@@ -311,15 +344,27 @@ def client_overlay(source, out):
                 '  AConnection.FRequestObj := ARequest;\n'
                 '  try\n    Result := AConnection._CreateRequestHeader(0, False);\n'
                 '  finally\n    AConnection.FRequestObj := nil;\n  end;\nend;\n{$ENDIF}\n\n')
+    wrapper += ('{$IFDEF CLIENT_POOL_BENCH}\n' + pool_release + '\nbegin\n'
+                '  AConnection._ReqLock;\n'
+                '  try\n    AConnection._EndRequest;\n  finally\n    AConnection._ReqUnlock;\n  end;\nend;\n\n'
+                + pool_state + '\nbegin\n  AConnection._ReqLock;\n'
+                '  try\n    AConnection._SetRequestStatus(AStatus);\n'
+                '  finally\n    AConnection._ReqUnlock;\n  end;\nend;\n{$ENDIF}\n\n')
+    wrapper += ('{$IFDEF CLIENT_TIMEOUT_BENCH}\n' + timeout_sent + '\nbegin\n'
+                '  AConnection._ReqLock;\n'
+                '  try\n    AConnection.FSendFinished := AFinished;\n'
+                '  finally\n    AConnection._ReqUnlock;\n  end;\nend;\n{$ENDIF}\n\n')
     text = text[:end] + wrapper + text[end:]
     declarations = ('{$IFDEF DOCK_KEY_BENCH}\n' + declaration + '\n{$ENDIF}\n'
-                    '{$IFDEF CLIENT_ENCODE_BENCH}\n' + client_declaration + '\n{$ENDIF}\n\n')
+                    '{$IFDEF CLIENT_ENCODE_BENCH}\n' + client_declaration + '\n{$ENDIF}\n'
+                    '{$IFDEF CLIENT_POOL_BENCH}\n' + pool_release + '\n' + pool_state + '\n{$ENDIF}\n'
+                    '{$IFDEF CLIENT_TIMEOUT_BENCH}\n' + timeout_sent + '\n{$ENDIF}\n\n')
     text = text[:match.start()] + declarations + text[match.start():]
     overlay = out / 'bench-source'
     overlay.mkdir(exist_ok=True)
     data = ('\ufeff' + text.replace('\r\n', '\n').replace('\n', '\r\n')).encode('utf-8')
     (overlay / 'Net.CrossHttpClient.pas').write_bytes(data)
-    save(out / 'client-overlay.json', {'purpose': '同单元薄包装真实_MakeServerDockKey/_CreateRequestHeader，构造和语义检查在计时外，请求指针仅调用期间借用',
+    save(out / 'client-overlay.json', {'purpose': '同单元薄包装键/请求头与原预占释放/状态设置；仅准备发送完成标志，连接选择和超时扫描直接调用原入口',
          'frozen_source_sha256': sha(original), 'overlay_sha256': sha(data)})
 
 
@@ -340,6 +385,10 @@ def build_micro(root, role, target, program="HeaderBench"):
         client_sources = [(root / side / 'source/Net/Net.CrossHttpClient.pas').read_text(encoding='utf-8-sig') for side in ('before', 'after')]
         if all('function NewHttpSendTestConnection(' in text and 'procedure StopHttpTimeoutTimerForTest(' in text for text in client_sources):
             defines += ['CROSS_HTTP_SEND_TESTS', 'CROSS_HTTP_TIMEOUT_TESTS', 'COOKIE_RESPONSE_BENCH']
+            if all('function TServerDock.GetIdleConnection:' in text for text in client_sources):
+                defines.append('CLIENT_POOL_BENCH')
+                if all('procedure ProcHttpTimeoutForTest(' in text for text in client_sources):
+                    defines.append('CLIENT_TIMEOUT_BENCH')
             if all('function TCrossHttpClientConnection._CreateRequestHeader(' in text for text in client_sources):
                 defines.append('CLIENT_ENCODE_BENCH')
             if all('function TCrossHttpClientSocket._MakeServerDockKey(' in text for text in client_sources):

@@ -48,10 +48,10 @@ def headers(s):
         assert len(data)<16384
     return data
 
-def connect(port):
+def connect(port, initial=b''):
     s=socket.create_connection(('127.0.0.1',port),timeout=3)
     key=base64.b64encode(os.urandom(16)).decode()
-    s.sendall((f'GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n\r\n').encode())
+    s.sendall((f'GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n\r\n').encode()+initial)
     assert b'101' in headers(s)
     return s
 
@@ -65,6 +65,12 @@ try:
         s.sendall(frame(8)+frame(1,b'forbidden'))
         assert recv_frame(s)==(8,b'',False)
         assert s.recv(1)==b''
+    # 握手头和首帧一次提交，验证HTTP解析后仍正确处理接收区间的尾部。
+    with connect(port, frame(1,b'coalesced')) as s:
+        assert recv_frame(s)==(2,b'coalesced',False)
+        s.sendall(frame(8))
+        assert recv_frame(s)==(8,b'',False)
+        assert s.recv(1)==b''
     bad=[(frame(1,b'A',masked=False),1002),(frame(1,b'\xc0\x80'),1007),(frame(9,b'x',False),1002),(frame(0,b'A'),1002),(frame(8,b'\x03\xed'),1002),(frame(1,b'A',False)+frame(2,b'B'),1002)]
     for data,code in bad:
         with connect(port) as s:
@@ -75,13 +81,13 @@ try:
     with connect(port) as s:
         s.sendall(bytes([0x82,0xff])+struct.pack('!Q',2*1024*1024)+b'abcd')
         op,data,mask=recv_frame(s);assert op==8 and data[:2]==struct.pack('!H',1009)
-    print('Native server loopback: 8 scenarios passed')
+    print('Native server loopback: 9 scenarios passed')
 finally:
     try:p.communicate('\n',timeout=5)
     except subprocess.TimeoutExpired:p.kill();p.communicate()
     assert p.returncode==0,p.returncode
 
-for mode in ('peer','local','invalid'):
+for mode in ('peer','local','invalid','coalesced'):
     with socket.socket() as listener:
         listener.bind(('127.0.0.1',0));listener.listen();listener.settimeout(5)
         p=launch('client',f'ws://127.0.0.1:{listener.getsockname()[1]}/ws',mode)
@@ -90,15 +96,23 @@ for mode in ('peer','local','invalid'):
             with s:
                 request=headers(s).decode();key=next(x.split(':',1)[1].strip() for x in request.split('\r\n') if x.lower().startswith('sec-websocket-key:'))
                 accept=base64.b64encode(hashlib.sha1((key+MAGIC).encode()).digest()).decode()
-                s.sendall((f'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n').encode())
-                assert recv_frame(s)==(1,b'request',True)
+                upgrade=(f'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n').encode()
+                messages=frame(1,b'A',False,False)+frame(9,b'x',masked=False)+frame(0,b'B',masked=False)
+                s.sendall(upgrade+(messages if mode=='coalesced' else b''))
+                if mode=='coalesced':
+                    # 业务线程发送request与I/O线程回复pong可以先后到达，分别验证内容和次数。
+                    replies=[recv_frame(s),recv_frame(s)]
+                    assert (1,b'request',True) in replies and (10,b'x',True) in replies,replies
+                else:
+                    assert recv_frame(s)==(1,b'request',True)
                 if mode=='invalid':
                     s.sendall(frame(1,b'bad',masked=True));op,data,masked=recv_frame(s)
                     assert (op,masked,data[:2])==(8,True,struct.pack('!H',1002))
                 else:
-                    s.sendall(frame(1,b'A',False,False)+frame(9,b'x',masked=False)+frame(0,b'B',masked=False))
-                    assert recv_frame(s)==(10,b'x',True)
-                    if mode=='peer':s.sendall(frame(8,masked=False)+frame(1,b'forbidden',masked=False))
+                    if mode!='coalesced':
+                        s.sendall(messages)
+                        assert recv_frame(s)==(10,b'x',True)
+                    if mode in ('peer','coalesced'):s.sendall(frame(8,masked=False)+frame(1,b'forbidden',masked=False))
                     assert recv_frame(s)==(8,b'',True)
                     if mode=='local':s.sendall(frame(8,masked=False))
             output,_=p.communicate(timeout=8)
@@ -107,4 +121,4 @@ for mode in ('peer','local','invalid'):
             assert 'forbidden' not in output,output
         finally:
             if p.poll() is None:p.kill();p.communicate()
-print('Native client loopback: 3 scenarios passed')
+print('Native client loopback: 4 scenarios passed')

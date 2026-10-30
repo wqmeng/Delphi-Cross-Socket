@@ -2912,7 +2912,7 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
   var
     LFieldHeader: THttpHeader;
     LContentDisposition: string;
-    LMatch: TMatch;
+    LRegEx: IRegEx;
   begin
     Result := False;
 
@@ -2925,9 +2925,13 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
 
       AFormField.FContentType := LFieldHeader['Content-Type'];
 
-      LMatch := TRegEx.Match(LContentDisposition, '\bname="(.*?)"(?=;|$)', [TRegExOption.roIgnoreCase]);
-      if LMatch.Success then
-        AFormField.FName := LMatch.Groups[1].Value;
+      // 这里只读取第一个捕获值，无需为所有组构造TMatch包装；匹配规则和起点保持。
+      LRegEx := TRegEx.Create('\bname="(.*?)"(?=;|$)');
+      LRegEx.Subject := LContentDisposition;
+      LRegEx.StartPos := 1;
+      LRegEx.Options := [TRegExOption.roIgnoreCase];
+      if LRegEx.Match then
+        AFormField.FName := LRegEx.Groups[1];
 
       // 使用 Content-Type 来判断是否需要按文件保存更为准确
       // 前端通过流的方式提交, 可能不会传递 filename 属性,
@@ -2939,13 +2943,17 @@ function THttpMultiPartFormData.Decode(const ABuf: Pointer; ALen: Integer; out A
       //   Content-Disposition: form-data; name="test_text"
       if (AFormField.FContentType <> '') then
       begin
-        LMatch := TRegEx.Match(LContentDisposition, '\bfilename="(.*?)"(?=;|$)', [TRegExOption.roIgnoreCase]);
+        // filename仍独立查找，不合并两条正则，以免改变重复属性/异常引号的既有结果。
+        LRegEx := TRegEx.Create('\bfilename="(.*?)"(?=;|$)');
+        LRegEx.Subject := LContentDisposition;
+        LRegEx.StartPos := 1;
+        LRegEx.Options := [TRegExOption.roIgnoreCase];
         // 带 filename 属性的头:
         //   Content-Disposition: form-data; name="content"; filename="test.json"
         //   Content-Type: application/json
-        if LMatch.Success then
+        if LRegEx.Match then
         begin
-          AFormField.FFileName := TPathUtils.GetFileName(LMatch.Groups[1].Value);
+          AFormField.FFileName := TPathUtils.GetFileName(LRegEx.Groups[1]);
           AFormField.FFilePath := TPathUtils.Combine(FStoragePath,
             __NewFileID + TPathUtils.GetExtension(AFormField.FFileName));
         end else

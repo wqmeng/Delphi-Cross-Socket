@@ -62,7 +62,7 @@ def build(target, output, checked):
         raise RuntimeError(decode(result.stdout + result.stderr)[-6000:])
     exe = output / ('HttpHeaderTests' if linux else 'HttpHeaderTests.exe')
     files = [REPO / 'Net' / name for name in ('Net.CrossHttpParams.pas', 'Net.CrossHttpUtils.pas',
-             'Net.CrossHttpClient.pas', 'Net.CrossHttpServer.pas', 'Net.CrossHttpParser.pas')]
+             'Net.CrossHttpClient.pas', 'Net.CrossHttpServer.pas', 'Net.CrossHttpParser.pas', 'Net.CrossHttpSessions.pas')]
     files += [HERE / 'HttpHeaderTests.lpr', HERE / 'run_tests.py', REPO / 'Utils/Utils.Utils.pas']
     files += sorted(HERE.glob('*.inc'))
     metadata = {'command': list(map(str, args)), 'checked': checked,

@@ -4346,6 +4346,49 @@ begin
 end;
 
 procedure TCrossHttpClient._ProcTimeout;
+type
+  TTimeoutKind = (tkNone, tkRequest, tkConnect, tkIdle);
+
+  function _GetTimeoutKind(const AConnection: TCrossHttpClientConnection): TTimeoutKind;
+  var
+    LClient: TCrossHttpClient;
+    LTimeout: Integer;
+  begin
+    Result := tkNone;
+    // 收集只判断候选：一次持锁取代三个判定各自加锁；实际动作仍用原函数重验。
+    AConnection._ReqLock;
+    try
+      LClient := (AConnection.Owner as TCrossHttpClientSocket).FHttpClient;
+      // 与_IsRequestTimeout保持相同条件、优先级和秒级比较，未发完的升级请求也参与。
+      LTimeout := LClient.FRequestTimeout;
+      if LTimeout > 0 then
+      begin
+        if ((AConnection.GetRequestStatus in [rsSending, rsResponding])
+          or ((AConnection.GetRequestStatus = rsUpgraded) and not AConnection.FSendFinished))
+          and (AConnection.FWatch.ElapsedMilliseconds div 1000 >= LTimeout) then
+          Exit(tkRequest);
+      end;
+
+      LTimeout := LClient.FConnectTimeout;
+      if LTimeout > 0 then
+      begin
+        if (AConnection.ConnectStatus = csConnecting)
+          and (AConnection.FWatch.ElapsedMilliseconds div 1000 >= LTimeout) then
+          Exit(tkConnect);
+      end;
+
+      LTimeout := LClient.FIdleout;
+      if LTimeout > 0 then
+      begin
+        if AConnection._IsIdle
+          and (AConnection.FWatch.ElapsedMilliseconds div 1000 >= LTimeout) then
+          Exit(tkIdle);
+      end;
+    finally
+      AConnection._ReqUnlock;
+    end;
+  end;
+
   procedure _Proc(const AHttpCli: ICrossHttpClientSocket);
   var
     LConns: TCrossConnections;
@@ -4388,21 +4431,25 @@ procedure TCrossHttpClient._ProcTimeout;
 
         if not LConn.IsClosed then
         begin
-          if LHttpConnObj._IsRequestTimeout then
-          begin
-            if LRequestCount = 0 then SetLength(LRequestTimeoutArr, LConns.Count);
-            LRequestTimeoutArr[LRequestCount] := LHttpConn;
-            Inc(LRequestCount);
-          end else if LHttpConnObj._IsConnectTimeout then
-          begin
-            if LConnectCount = 0 then SetLength(LConnectTimeoutArr, LConns.Count);
-            LConnectTimeoutArr[LConnectCount] := LHttpConn;
-            Inc(LConnectCount);
-          end else if LHttpConnObj._IsIdleout then
-          begin
-            if LIdleCount = 0 then SetLength(LIdleoutArr, LConns.Count);
-            LIdleoutArr[LIdleCount] := LHttpConn;
-            Inc(LIdleCount);
+          case _GetTimeoutKind(LHttpConnObj) of
+            tkRequest:
+              begin
+                if LRequestCount = 0 then SetLength(LRequestTimeoutArr, LConns.Count);
+                LRequestTimeoutArr[LRequestCount] := LHttpConn;
+                Inc(LRequestCount);
+              end;
+            tkConnect:
+              begin
+                if LConnectCount = 0 then SetLength(LConnectTimeoutArr, LConns.Count);
+                LConnectTimeoutArr[LConnectCount] := LHttpConn;
+                Inc(LConnectCount);
+              end;
+            tkIdle:
+              begin
+                if LIdleCount = 0 then SetLength(LIdleoutArr, LConns.Count);
+                LIdleoutArr[LIdleCount] := LHttpConn;
+                Inc(LIdleCount);
+              end;
           end;
 
           {$IFDEF DEBUG}
@@ -5074,13 +5121,16 @@ end;
 
 function TServerDock.GetIdleConnection: ICrossHttpClientConnection;
 var
+  I: Integer;
   LConn: ICrossConnection;
   LHttpConnObj: TCrossHttpClientConnection;
 begin
   _Lock;
   try
-    for LConn in FConnections do
+    // 同一dock锁保护列表与连接认领；索引遍历省去每次查找的枚举器对象。
+    for I := 0 to FConnections.Count - 1 do
     begin
+      LConn := FConnections[I];
       LHttpConnObj := LConn as TCrossHttpClientConnection;
       if LHttpConnObj._TryBeginRequest then
       begin

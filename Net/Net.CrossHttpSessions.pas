@@ -825,7 +825,8 @@ end;
 
 procedure TSessions._ClearExpiredSessions;
 var
-  LPair: TPair<string, ISession>;
+  LSession: ISession;
+  LEnumerator: TDictionary<string, ISession>.TValueEnumerator;
   LDelSessions: TArray<ISession>;
   LCount, LCapacity, LTotal: NativeInt;
 begin
@@ -838,23 +839,30 @@ begin
       // 判定和删除保持在同一写锁内，续期/同 ID 替换不会插入其中。
       LTotal := FSessions.Count;
       LCount := 0;
-      for LPair in FSessions do
-      begin
-        if AtomicCmpExchange(FShutdown, 0, 0) <> 0 then Break;
-        if OnCheckExpiredSession(LPair.Value) then
+      // 只枚举值，省去每项键字符串中转；直接构造避免Values集合和虚GetEnumerator。
+      LEnumerator := TDictionary<string, ISession>.TValueEnumerator.Create(FSessions);
+      try
+        while LEnumerator.MoveNext do
         begin
-          // 零过期不分配快照；稀疏过期只保留小数组，满后几何增长。
-          if LCount = Length(LDelSessions) then
+          LSession := LEnumerator.Current;
+          if AtomicCmpExchange(FShutdown, 0, 0) <> 0 then Break;
+          if OnCheckExpiredSession(LSession) then
           begin
-            if LCount = 0 then LCapacity := 8
-            else if LCount <= LTotal div 2 then LCapacity := LCount * 2
-            else LCapacity := LTotal;
-            if LCapacity > LTotal then LCapacity := LTotal;
-            SetLength(LDelSessions, LCapacity);
+            // 零过期不分配快照；稀疏过期只保留小数组，满后几何增长。
+            if LCount = Length(LDelSessions) then
+            begin
+              if LCount = 0 then LCapacity := 8
+              else if LCount <= LTotal div 2 then LCapacity := LCount * 2
+              else LCapacity := LTotal;
+              if LCapacity > LTotal then LCapacity := LTotal;
+              SetLength(LDelSessions, LCapacity);
+            end;
+            LDelSessions[LCount] := LSession;
+            Inc(LCount);
           end;
-          LDelSessions[LCount] := LPair.Value;
-          Inc(LCount);
         end;
+      finally
+        LEnumerator.Free;
       end;
       SetLength(LDelSessions, LCount);
       RemoveSessions(LDelSessions);
@@ -865,7 +873,7 @@ begin
     end;
   finally
     // 包括钩子抛异常的路径，删除对象的最后引用也只在解锁后释放。
-    LPair.Value := nil;
+    LSession := nil;
     LDelSessions := nil;
   end;
 end;

@@ -3,12 +3,20 @@
   public
     Changed:IEvent;
     constructor Create;
-    function Write(const Buffer;Count:LongInt):LongInt;override;
+    function Write(const Buffer;Count:LongInt):LongInt;overload;override;
+    // 新版Delphi Win64的WriteBuffer走NativeInt入口，也需通知实际正文进展。
+    {$IFDEF DELPHI}{$IF CompilerVersion >= 37}{$IFDEF CPU64BITS}{$IFDEF MSWINDOWS}
+    function Write(const Buffer;Count:NativeInt):NativeInt;overload;override;
+    {$ENDIF}{$ENDIF}{$ENDIF}{$ENDIF}
   end;
 constructor TProgressStream.Create;
 begin inherited;Changed:=TEvent.Create(True,False);end;
 function TProgressStream.Write(const Buffer;Count:LongInt):LongInt;
 begin Result:=inherited;Changed.SetEvent;end;
+{$IFDEF DELPHI}{$IF CompilerVersion >= 37}{$IFDEF CPU64BITS}{$IFDEF MSWINDOWS}
+function TProgressStream.Write(const Buffer;Count:NativeInt):NativeInt;
+begin Result:=inherited;Changed.SetEvent;end;
+{$ENDIF}{$ENDIF}{$ENDIF}{$ENDIF}
 procedure TestClientTimeout(const Mode,Url:string);
 var
   Client:ICrossHttpClient;ClientObj:TCrossHttpClient;
@@ -44,6 +52,9 @@ begin
   InitEntered:=TEvent.Create(True,False);ContinueInit:=TEvent.Create(True,False);
   Body:=TProgressStream.Create;ClientObj:=TCrossHttpClient.Create(1);Client:=ClientObj;
   StopHttpTimeoutTimerForTest(ClientObj);Client.RequestTimeout:=1;Client.Idleout:=1;
+  // 当前DoRequest在Init之前已进入rsSending。本用例只检查Idleout，
+  // 关闭无关的请求超时，避免1.1秒初始化停顿被合法收集为请求超时。
+  if Mode='idle-reserved' then Client.RequestTimeout:=0;
   Init:=procedure(const R:ICrossHttpClientRequest)
     begin
       if FirstConnection=nil then FirstConnection:=R.Connection else SecondConnection:=R.Connection;
@@ -58,10 +69,10 @@ begin
     if Copy(Mode,1,8)='request-' then Await(Body.Changed,'未收到首段响应') else WaitDone(200);
     if Mode='idle-reserved' then begin
       Requester:=TThread.CreateAnonymousThread(procedure begin Client.DoRequest('GET',Url+'/second',nil,TBytes(nil),nil,Init,Callback);end);
-      Requester.FreeOnTerminate:=False;Requester.Start;Await(InitEntered,'未预占空闲连接');
+      Requester.FreeOnTerminate:=False;Requester.Start;Await(InitEntered,'第二个请求未进入初始化');
       TThread.Sleep(1100);ProcHttpTimeoutForTest(ClientObj,procedure begin Inc(CollectedCalls);end);
-      Check(CollectedCalls=0,'仍在初始化的预占连接被判为空闲');
-      Check(not FirstConnection.IsClosed,'预占请求被关闭');ContinueInit.SetEvent;
+      Check(CollectedCalls=0,'初始化中的请求被收集为空闲超时候选');
+      Check(not FirstConnection.IsClosed,'初始化中的请求被空闲超时关闭');ContinueInit.SetEvent;
       Requester.WaitFor;Check(Requester.FatalException=nil,'请求线程异常');Line('SCANNED');WaitDone(200);
     end else begin
       TThread.Sleep(1100);

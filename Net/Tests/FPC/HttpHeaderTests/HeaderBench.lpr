@@ -7,7 +7,7 @@ uses
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
-  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode);
+  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode, bmAssign);
   {$IFDEF FPC}
   TBenchManager = TMemoryManager;
   TBenchSize = PtrUInt;
@@ -69,7 +69,7 @@ var
   Mode: TMode;
   Data, HeaderData, ResponseData, ValidatedHeader: TBytes;
   HeaderText, FirstLine, Target, ExpectedPath, FieldText: string;
-  Header, Expected: THttpHeader;
+  Header, Expected, AssignSource: THttpHeader;
   ExpectedQuery, LDecodedQuery: THttpUrlParams;
   ExpectedCookies, LDecodedCookies: TRequestCookies;
   Request: TRequestAccess;
@@ -226,6 +226,8 @@ var
         begin EncodedFields := ExpectedQuery.Encode; Inc(Checksum, Length(EncodedFields)); end;
       bmCookieEncode: for J := 1 to Count do
         begin EncodedFields := ExpectedCookies.Encode; Inc(Checksum, Length(EncodedFields)); end;
+      bmAssign: for J := 1 to Count do
+        begin Header.Assign(AssignSource); Inc(Checksum, Header.Count); end;
       bmServerEncode: for J := 1 to Count do
         begin Encoded := HttpHeaderBenchCreate(ServerResponse, 165); Inc(Checksum, Length(Encoded)); end;
     end;
@@ -242,6 +244,7 @@ begin
   else if ParamStr(1) = 'field-encode' then Mode := bmFieldEncode
   else if ParamStr(1) = 'query-encode' then Mode := bmQueryEncode
   else if ParamStr(1) = 'cookie-encode' then Mode := bmCookieEncode
+  else if ParamStr(1) = 'assign' then Mode := bmAssign
   else raise Exception.Create('Unknown benchmark');
   N := StrToInt(ParamStr(3)); Check(N > 0, 'Invalid count');
   Allocations := ParamStr(4) = 'alloc';
@@ -325,6 +328,20 @@ begin
             LDecodedCookies.Free;
           end;
         end;
+      bmAssign:
+        begin
+          // 来源的字节解析及完整记录核对都在计时外，循环只测清空和复制集合。
+          Check(Request.ParseHeader(Pointer(Data), Length(Data)), 'Assign seed request invalid');
+          AssignSource := Request.Header;
+          Header.Assign(AssignSource);
+          Valid := SameParams(Header, Expected);
+          {$IFDEF HEADER_BYTES}
+          for I := 0 to Header.Count - 1 do
+            Valid := Valid and (Header.Items[I].HasRawValue = AssignSource.Items[I].HasRawValue)
+              and (Length(Header.Items[I].RawValue) = Length(AssignSource.Items[I].RawValue))
+              and (Pointer(Header.Items[I].RawValue) = Pointer(AssignSource.Items[I].RawValue));
+          {$ENDIF}
+        end;
       bmServerEncode:
         begin
           Check(Request.ParseHeader(@EncodeRequest[1], Length(EncodeRequest)), 'ASCII encode seed request invalid');
@@ -361,7 +378,7 @@ begin
     {$IFDEF HEADER_BYTES}
     if Mode in [bmRequest, bmNewRequest] then
       for I := 0 to Request.Header.Count-1 do Inc(RawBytes, Length(Request.Header.Items[I].RawValue))
-    else if Mode = bmWire then
+    else if Mode in [bmWire, bmAssign] then
       for I := 0 to Header.Count-1 do Inc(RawBytes, Length(Header.Items[I].RawValue));
     {$ENDIF}
     if Mode = bmQueryEncode then

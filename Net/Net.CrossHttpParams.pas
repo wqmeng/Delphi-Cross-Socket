@@ -1281,7 +1281,8 @@ end;
 
 procedure TBaseParams.Assign(const ASource: TBaseParams);
 var
-  LParamItem: TParamEntry;
+  I: Integer;
+  P: PParamEntry;
 begin
   // 必须在 Clear 前判断自赋值，否则也会清空作为来源的同一对象。
   if ASource = Self then Exit;
@@ -1289,9 +1290,14 @@ begin
 
   if (ASource = nil) or (ASource.Count <= 0) then Exit;
 
-  // 按完整记录复制，保留顺序、重复项与来源标记，不额外深拷贝 RawValue。
-  for LParamItem in ASource do
-    Add(LParamItem);
+  // 来源和目标列表独立；循环只修改目标，借用来源记录不会被目标扩容失效。
+  // Add仍复制完整记录并管理引用，保留raw共享及原增长策略，省去枚举器和记录中转。
+  P := _ParamData(ASource.FParams);
+  for I := 0 to ASource.Count - 1 do
+  begin
+    Add(P^);
+    Inc(P);
+  end;
 end;
 
 procedure TBaseParams.Add(const AParamValue: TParamEntry);

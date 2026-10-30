@@ -43,6 +43,8 @@ EXTRA_CASES += [('query-encode', fixture) for fixture in ('small', 'url-escaped'
 EXTRA_CASES += [('query-encode', 'query-many')]
 # Cookie输出仅显式计时，解析集合及回读验证不计入。
 EXTRA_CASES += [('cookie-encode', fixture) for fixture in ('cookie-small', 'cookie-many', 'cookie')]
+# 集合复制包含目标清空，来源解析及raw核对在计时外。
+EXTRA_CASES += [('assign', fixture) for fixture in ('small', 'many', 'unicode')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 

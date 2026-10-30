@@ -725,6 +725,7 @@ end;
 {$I UrlEncodeCases.inc}
 {$I QueryEncodeCases.inc}
 {$I ParamMutationCases.inc}
+{$I ParamAssignCases.inc}
 
 var I: Integer;
 begin
@@ -732,7 +733,8 @@ begin
     if ParamStr(1) = 'server' then Server
     else if ParamStr(1) = 'client' then Client
     else begin
-      Writeln('entries'); TestEntries; Inc(Checks, RunParamMutationTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
+      Writeln('entries'); TestEntries; Inc(Checks, RunParamMutationTests);
+      Inc(Checks, RunParamAssignTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
       Writeln('header-encoding'); TestHeaderEncoding; Inc(Checks, RunHeaderEncodeTests);
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
       Writeln('control-headers'); TestControlHeaders; Inc(Checks, RunChunkedMetadataTests);

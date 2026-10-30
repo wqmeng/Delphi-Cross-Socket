@@ -4769,14 +4769,18 @@ end;
 
 function TCrossHttpRequest.CalcIsChunked: Boolean;
 var
-  LEncodings: TArray<string>;
+  I: Integer;
 begin
-  // RFC 7230 §3.3.1: Transfer-Encoding 可以是逗号分隔列表, 最终编码为最后一个
-  LEncodings := FTransferEncoding.Trim.Split([',']);
-  if Length(LEncodings) > 0 then
-    Result := TStrUtils.SameText(LEncodings[Length(LEncodings) - 1].Trim, 'chunked')
-  else
-    Result := False;
+  if FTransferEncoding = '' then Exit(False);
+  // 这里只计算最后一段的元数据，不代替Parser的传输编码合法性校验。
+  // 尾逗号仍得到空末段；保留原Trim/SameText规则，不构造整个分割数组。
+  I := Length(FTransferEncoding);
+  while I > 0 do
+  begin
+    if FTransferEncoding[I] = ',' then Break;
+    Dec(I);
+  end;
+  Result := TStrUtils.SameText(Copy(FTransferEncoding, I + 1, MaxInt).Trim, 'chunked');
 end;
 
 function TCrossHttpRequest.GetIsMultiPartFormData: Boolean;
@@ -5680,13 +5684,14 @@ begin
   if Assigned(LServer)
     and LServer.Compressible
     and (ABodySize > 0)
-    and ((LServer.MinCompressSize <= 0) or (ABodySize >= LServer.MinCompressSize))
-    and ((Pos('text/', LContType.ToLower) > 0)
-      or (Pos('application/json', LContType.ToLower) > 0)
-      or (Pos('javascript', LContType.ToLower) > 0)
-      or (Pos('xml', LContType.ToLower) > 0)
-    ) then
+    and ((LServer.MinCompressSize <= 0) or (ABodySize >= LServer.MinCompressSize)) then
   begin
+    // 通过压缩资格门槛之后才转换一次，不让未启用压缩/小正文承担转换成本。
+    LContType := LContType.ToLower;
+    if not ((Pos('text/', LContType) > 0)
+      or (Pos('application/json', LContType) > 0)
+      or (Pos('javascript', LContType) > 0)
+      or (Pos('xml', LContType) > 0)) then Exit(False);
     LRequestAcceptEncoding := GetRequest.AcceptEncoding;
 
     // 按 q-value 排序选最优编码 (RFC 7231 §5.3.4).

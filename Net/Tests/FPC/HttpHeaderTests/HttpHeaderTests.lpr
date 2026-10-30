@@ -713,10 +713,14 @@ end;
 {$I StartLineCaseCases.inc}
 {$I HeaderNameCases.inc}
 {$I HeaderEncodeCases.inc}
+{$I ChunkedMetadataCases.inc}
 {$I ResponseCookieOutputCases.inc}
 {$I BodylessResponseCases.inc}
+{$I CompressionChoiceCases.inc}
 {$I RequestPathCases.inc}
 {$I RequestQueryCases.inc}
+{$I RequestCookieScanCases.inc}
+{$I UrlDecodeCases.inc}
 {$I ParamMutationCases.inc}
 
 var I: Integer;
@@ -728,13 +732,15 @@ begin
       Writeln('entries'); TestEntries; Inc(Checks, RunParamMutationTests); Writeln('decode'); TestDecode; Writeln('encode'); TestEncode;
       Writeln('header-encoding'); TestHeaderEncoding; Inc(Checks, RunHeaderEncodeTests);
       Writeln('request'); TestRequest; Writeln('multipart'); TestMultipart;
-      Writeln('control-headers'); TestControlHeaders;
+      Writeln('control-headers'); TestControlHeaders; Inc(Checks, RunChunkedMetadataTests);
       Writeln('decode-bounds'); TestDecodeBounds;
       Writeln('header-scan-word'); Inc(Checks, RunHeaderScanWordTests);
       Writeln('startline-case'); Inc(Checks, RunStartLineCaseTests);
       Writeln('header-names'); Inc(Checks, RunHeaderNameTests);
       Writeln('request-paths'); Inc(Checks, RunRequestPathTests);
       Writeln('request-query'); Inc(Checks, RunRequestQueryTests);
+      Inc(Checks, RunRequestCookieScanTests);
+      Writeln('url-decode'); Inc(Checks, RunUrlDecodeTests);
       {$IFDEF MSWINDOWS}Writeln('decode-guard'); TestDecodeGuard;{$ENDIF}
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');
@@ -742,6 +748,8 @@ begin
       I := RunResponseCookieOutputTests;
       Inc(Checks, I);
       I := RunBodylessResponseTests;
+      Inc(Checks, I);
+      I := RunCompressionChoiceTests;
       Inc(Checks, I);
       for I := 0 to 4 do TestServerOutput(I);
     end;

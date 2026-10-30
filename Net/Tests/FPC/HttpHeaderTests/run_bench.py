@@ -36,6 +36,8 @@ CASES += [(mode, 'original') for mode in ('string', 'new-request', 'response', '
 # 旧手工表达式和单独字段生成仅供补充分析，不加入默认 all 恢复门槛。
 EXTRA_CASES = [(mode, fixture) for mode in ('encode-legacy', 'field-encode')
                for fixture in ('small', 'ascii', 'many', 'cookie', 'original', 'unicode')]
+# URL解码专用输入只显式选择，不改变既有all对照范围。
+EXTRA_CASES += [('request', fixture) for fixture in ('url-escaped', 'url-unicode', 'url-long-tail')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -109,6 +111,9 @@ def fixtures(root):
     values['cookie'] = small[:-2] + b'Cookie: session=' + b'a' * 8192 + b'\r\n\r\n'
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')
+    values['url-escaped'] = small.replace(b'/bench?a=1&b=2', b'/a%2Fb%20c?key=a%26b&plus=x+y')
+    values['url-unicode'] = small.replace(b'/bench?a=1&b=2', '/中文/文件?name=中文&other=值'.encode('utf-8'))
+    values['url-long-tail'] = small.replace(b'/bench?a=1&b=2', b'/' + b'a' * 1024 + b'%2Fend?q=' + b'x' * 1024 + b'%20z')
     folder = root / 'fixtures'
     folder.mkdir(exist_ok=True)
     for name, data in values.items():

@@ -1835,8 +1835,21 @@ var
   LSrcLen, LSrcIdx, LDstIdx: Integer;
   H, L: Byte;
   C: Byte;
+  I: NativeInt;
+  LNeedsDecode: Boolean;
 begin
   if (S = '') then Exit('');
+
+  // 纯ASCII且没有转义时，原UTF8往返不会改变文本，直接沿用字符串，省去临时字节数组。
+  // 按长度读取，保留内嵌NUL；非ASCII及所有%/+继续原算法，保留替换、异常和转义规则。
+  LNeedsDecode := False;
+  for I := 1 to Length(S) do
+    if (Ord(S[I]) > 127) or (S[I] = '%') or (S[I] = '+') then
+    begin
+      LNeedsDecode := True;
+      Break;
+    end;
+  if not LNeedsDecode then Exit(S);
 
   // 先把输入 unicode 字符串 UTF-8 编码为字节流, 与 UrlEncode 对称.
   // 这样允许输入混合: ASCII percent-encoded ('%E4%B8%AD') 与 unicode 原字符 ('中') 都能正确处理.

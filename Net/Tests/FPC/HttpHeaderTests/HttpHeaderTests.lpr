@@ -714,6 +714,7 @@ end;
 {$I HeaderNameCases.inc}
 {$I HeaderEncodeCases.inc}
 {$I ResponseCookieOutputCases.inc}
+{$I BodylessResponseCases.inc}
 {$I RequestPathCases.inc}
 {$I RequestQueryCases.inc}
 {$I ParamMutationCases.inc}
@@ -739,6 +740,8 @@ begin
       Writeln('server-output');
       // Feed会直接累计全局断言；先取得局部计数，避免Inc求值顺序覆盖函数内部的增量。
       I := RunResponseCookieOutputTests;
+      Inc(Checks, I);
+      I := RunBodylessResponseTests;
       Inc(Checks, I);
       for I := 0 to 4 do TestServerOutput(I);
     end;

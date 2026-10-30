@@ -979,7 +979,7 @@ type
 {$IFDEF FPC}
 procedure THeaderParamList.SetCapacity(AValue: SizeInt);
 begin
-  if (AValue = 0) and not Assigned(OnNotify) then
+  if AValue = 0 then
   begin
     // 使用 RTL 留给后代的字段；释放所有托管引用及容量，不跨请求保留数组。
     // TList.Destroy 也经由此虚方法释放容量。
@@ -991,17 +991,13 @@ end;
 
 procedure THeaderParamList.ClearHeader;
 begin
-  // 配置通知时完全沿用原 Clear，保留删除通知的内容、顺序和调用次数。
-  if Assigned(OnNotify) then
-    inherited Clear
-  else
-    SetCapacity(0);
+  SetCapacity(0);
 end;
 {$ENDIF}
 
 // 只借用公开后备数组的元素地址，不依赖 TList 私有布局，也不建立整记录副本。
 // Delphi 用 PList 避免 GetList 返回托管数组临时引用；FPC 的 List 直接读取数组字段。
-// 空数组可返回 nil；调用方仅在 Count 范围内读取，不跨突变/扩容或用户回调保存指针。
+// 空数组可返回 nil；调用方仅在 Count 范围内读取，不跨突变/扩容保存元素指针。
 function _ParamData(const AParams: TList<TParamEntry>): PParamEntry; inline;
 begin
   {$IFDEF DELPHI}
@@ -1242,7 +1238,7 @@ begin
   inherited;
 end;
 
-// 扩容/通知路径保留原记录提交：先取得参数引用，再由 RTL 扩容并触发通知。
+// 扩容前先构造完整记录，保住传入的字符串引用，再由 RTL 按原策略扩容。
 // 不内联，避免容量内追加也初始化、复制、终结整条临时 TParamEntry。
 procedure _AddParamItem(const AParams: TList<TParamEntry>; const AName, AValue: string);
 begin
@@ -1261,12 +1257,12 @@ begin
   end;
   I := FParams.Count;
   LCapacity := _ParamCapacity(FParams);
-  if (I >= LCapacity) or Assigned(FParams.OnNotify) then
+  if I >= LCapacity then
   begin
     _AddParamItem(FParams, AName, AValue);
     Exit;
   end;
-  // 已有容量的新槽由 RTL 清零；此处不扩容、不回调，字符串参数的现有别名仍有效。
+  // 已有容量的新槽由 RTL 清零；此处不扩容，字符串参数的现有别名仍有效。
   // 只建立最终字段引用，不制造 raw 来源，也不产生整记录中转。
   FParams.Count := I + 1;
   P := _ParamData(FParams);
@@ -1428,11 +1424,18 @@ end;
 procedure TBaseParams.Remove(const AName: string);
 var
   I: Integer;
+  P: PParamEntry;
 begin
-  // 倒序删除，避免删除后索引移动导致漏项。
+  // 只读名称，不为比较复制Value/raw；倒序保持重复项删除规则。
   for I := FParams.Count - 1 downto 0 do
-    if TStrUtils.SameText(FParams[I].Name, AName) then
-      FParams.Delete(I);
+  begin
+    // 删除后元素/后备数组可能改变，每轮重新取地址，不跨删除保存旧指针。
+    P := _ParamData(FParams);
+    Inc(P, I);
+    if TStrUtils.SameText(P^.Name, AName) then
+      // 通过既有非inline重载隔离Delete的托管记录临时，未命中时无需初始化/终结它。
+      Remove(I);
+  end;
 end;
 
 procedure TBaseParams.Remove(AIndex: Integer);
@@ -1484,19 +1487,20 @@ end;
 procedure TBaseParams.SetParam(const AName, AValue: string);
 var
   I: Integer;
-  LItem: TParamEntry;
+  P: PParamEntry;
 begin
   I := GetParamIndex(AName);
   if (I >= 0) then
   begin
-    LItem := FParams[I];
-    LItem.Value := AValue;
-    // 新字符串不再代表收到的字节；只清除此目标项的来源，保留名称及其他项。
-    LItem.RawValue := nil;
-    LItem.HasRawValue := False;
-    FParams[I] := LItem;
+    P := _ParamData(FParams);
+    Inc(P, I);
+    // 只更新首项；先赋值以保留自赋值/共享字符串，再使该项raw来源失效。
+    // 不修改Name和raw数组内容，外部记录快照仍持有原值；无需整记录复制回写。
+    P^.Value := AValue;
+    P^.RawValue := nil;
+    P^.HasRawValue := False;
   end else
-    FParams.Add(TParamEntry.Create(AName, AValue));
+    Add(AName, AValue, True);
 end;
 
 procedure TBaseParams.Sort(const AComparison: TParamEntryComparison);

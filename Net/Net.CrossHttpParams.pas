@@ -1597,19 +1597,22 @@ function THttpUrlParams.Encode: string;
 var
   I: Integer;
   LName, LValue: string;
+  P: PParamEntry;
 begin
   Result := '';
+  // 编码期间列表不变；只借用本项字段，避免Items为Name和Value各复制整条记录。
+  P := _ParamData(FParams);
   for I := 0 to FParams.Count - 1 do
   begin
     if FEncodeName then
-      LName := TCrossHttpUtils.UrlEncode(FParams[I].Name)
+      LName := TCrossHttpUtils.UrlEncode(P^.Name)
     else
-      LName := FParams[I].Name;
+      LName := P^.Name;
 
     if FEncodeValue then
-      LValue := TCrossHttpUtils.UrlEncode(FParams[I].Value)
+      LValue := TCrossHttpUtils.UrlEncode(P^.Value)
     else
-      LValue := FParams[I].Value;
+      LValue := P^.Value;
     // 名称和值准备好后只追加一次，避免依次追加分隔符、名称和值而重复复制前缀。
     // 按编码后的值判断是否输出等号，保留空值、重复项和首项的原格式。
     if I = 0 then
@@ -1622,6 +1625,7 @@ begin
       else
         Result := Result + '&' + LName;
     end;
+    Inc(P);
   end;
 end;
 

@@ -45,6 +45,8 @@ EXTRA_CASES += [('query-encode', 'query-many')]
 EXTRA_CASES += [('cookie-encode', fixture) for fixture in ('cookie-small', 'cookie-many', 'cookie')]
 # 集合复制包含目标清空，来源解析及raw核对在计时外。
 EXTRA_CASES += [('assign', fixture) for fixture in ('small', 'many', 'unicode')]
+# 压缩协商只显式选择，计时真实_CheckCompress但不包含压缩或发送。
+EXTRA_CASES += [('compress-choice', fixture) for fixture in ('compress-none', 'compress-basic', 'compress-q')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -118,6 +120,9 @@ def fixtures(root):
     values['cookie'] = small[:-2] + b'Cookie: session=' + b'a' * 8192 + b'\r\n\r\n'
     values['cookie-small'] = small[:-2] + b'Cookie: a=1; b=2\r\n\r\n'
     values['cookie-many'] = small[:-2] + b'Cookie: ' + b'; '.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)) + b'\r\n\r\n'
+    values['compress-none'] = small
+    values['compress-basic'] = small[:-2] + b'Accept-Encoding: gzip, deflate\r\n\r\n'
+    values['compress-q'] = small[:-2] + b'Accept-Encoding: br, gzip;q=0, deflate;q=1, identity;q=0, gzip;q=0\r\n\r\n'
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
     values['query-many'] = small.replace(b'/bench?a=1&b=2', b'/bench?' + b'&'.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)))
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')
@@ -228,19 +233,22 @@ def server_overlay(source, out):
     original = (source / 'Net/Net.CrossHttpServer.pas').read_bytes()
     text = original.decode('utf-8-sig')
     declaration = 'function HttpHeaderBenchCreate(const AResponse: TCrossHttpResponse; const ABodySize: Int64): TBytes;'
+    compress_declaration = 'function HttpHeaderBenchCompress(const AResponse: TCrossHttpResponse; const ABodySize: Int64; out AType: TCompressType): Boolean;'
     match = re.search(r'^implementation\s*$', text, re.M)
     if not match:
         raise RuntimeError('HttpServer implementation boundary missing')
-    text = text[:match.start()] + declaration + '\n\n' + text[match.start():]
+    text = text[:match.start()] + declaration + '\n' + compress_declaration + '\n\n' + text[match.start():]
     end = text.rfind('end.')
     if end < 0:
         raise RuntimeError('HttpServer unit end missing')
-    text = text[:end] + declaration + '\nbegin\n  Result := AResponse._CreateHeader(ABodySize, False);\nend;\n\n' + text[end:]
+    wrappers = declaration + '\nbegin\n  Result := AResponse._CreateHeader(ABodySize, False);\nend;\n\n'
+    wrappers += compress_declaration + '\nbegin\n  Result := AResponse._CheckCompress(ABodySize, AType);\nend;\n\n'
+    text = text[:end] + wrappers + text[end:]
     overlay = out / 'bench-source'
     overlay.mkdir(exist_ok=True)
     data = ('\ufeff' + text.replace('\r\n', '\n').replace('\n', '\r\n')).encode('utf-8')
     (overlay / 'Net.CrossHttpServer.pas').write_bytes(data)
-    save(out / 'overlay.json', {'purpose': '同单元薄包装真实 _CreateHeader，构造在计时外',
+    save(out / 'overlay.json', {'purpose': '同单元薄包装真实 _CreateHeader/_CheckCompress，构造和门槛验证在计时外',
          'frozen_source_sha256': sha(original), 'overlay_sha256': sha(data)})
     return overlay
 

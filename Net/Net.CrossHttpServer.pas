@@ -5657,8 +5657,7 @@ var
   LContType, LRequestAcceptEncoding, LEnc, LQPart: string;
   LServer: ICrossHttpServer;
   LConnection: ICrossHttpConnection;
-  LEncodings: TArray<string>;
-  I, LQSep: Integer;
+  LPos, LEnd, LLength, LQSep: Integer;
   LGzipQ, LDeflateQ, LBestQ: Double;
 begin
   ACompressType := ctNone;
@@ -5693,16 +5692,28 @@ begin
       or (Pos('javascript', LContType) > 0)
       or (Pos('xml', LContType) > 0)) then Exit(False);
     LRequestAcceptEncoding := GetRequest.AcceptEncoding;
+    // 空列表没有可选编码；ACompressType已初始化为ctNone。
+    if LRequestAcceptEncoding = '' then Exit(False);
 
     // 按 q-value 排序选最优编码 (RFC 7231 §5.3.4).
     // q 值越高优先级越高, 缺省 q=1.0; q=0 表示明确拒绝.
-    LEncodings := LRequestAcceptEncoding.Split([',']);
     begin
       LGzipQ := 0;
       LDeflateQ := 0;
-      for I := 0 to High(LEncodings) do
+      LPos := 1;
+      LLength := Length(LRequestAcceptEncoding);
+      // 逐片处理，省去Split数组；保留原Trim和q值解释，不增加引号等特殊规则。
+      while LPos <= LLength do
       begin
-        LEnc := LEncodings[I].Trim;
+        LEnd := LPos;
+        while LEnd <= LLength do
+        begin
+          if LRequestAcceptEncoding[LEnd] = ',' then Break;
+          Inc(LEnd);
+        end;
+        LEnc := Copy(LRequestAcceptEncoding, LPos, LEnd - LPos).Trim;
+        // 必须先推进，后面的q<=0可以直接Continue；空片段仍按原逻辑忽略。
+        LPos := LEnd + 1;
         LQSep := LEnc.IndexOf(';');
         LBestQ := 1.0;
         if LQSep >= 0 then

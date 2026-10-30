@@ -99,5 +99,21 @@ begin
   RunCase('APPLICATION/JSON', 'gzip;q=0, deflate;q=0', '', True, 1024, 512, False);
   // 整数q不依赖系统小数点；重复项仍取原来的最大权重。
   RunCase('APPLICATION/JSON', 'GZIP; Q=0, gzip;q=1, deflate;q=0', 'gzip', True, 1024, 512, False);
+  // 逗号扫描保持空项、首尾分隔符及q<=0后的继续处理。
+  RunCase('APPLICATION/JSON', '', '', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', ',,,', '', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', ', gzip,,', 'gzip', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'gzip;q=0, deflate', 'deflate', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'gzip;q=-1, deflate;q=0', '', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'gzip;q=0, GZIP;Q=1, deflate;q=1', 'gzip', True, 1024, 512, False);
+  // 保留旧版权重和参数处理：不收紧q范围，也不重新拆分首个分号后的参数。
+  RunCase('APPLICATION/JSON', 'deflate;q=2, gzip;q=1', 'deflate', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'gzip;foo=bar;q=0, deflate;q=0', 'gzip', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'gzip;q=0;foo=bar, deflate;q=1', 'deflate', True, 1024, 512, False);
+  // 旧Split不识别引号；引号内的逗号仍分割，名称两端的引号也不会被去掉。
+  RunCase('APPLICATION/JSON', '"gzip", deflate;q=0', '', True, 1024, 512, False);
+  RunCase('APPLICATION/JSON', 'unknown;note="a, gzip, b", deflate;q=0', 'gzip', True, 1024, 512, False);
+  // 合法HTAB由原Trim处理；NBSP等高位输入已在协议控制字段解析时拒绝。
+  RunCase('APPLICATION/JSON', #9'gzip'#9', deflate;q=0', 'gzip', True, 1024, 512, False);
   Result := LChecks;
 end;

@@ -7,7 +7,7 @@ uses
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
-  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode, bmAssign);
+  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode, bmAssign, bmCompressChoice);
   {$IFDEF FPC}
   TBenchManager = TMemoryManager;
   TBenchSize = PtrUInt;
@@ -84,6 +84,7 @@ var
   I, LineEnd, HeaderEnd, N, EntrySize, RawBytes: Integer;
   BeginTick, EndTick, Frequency, Checksum, UnitChecksum: Int64;
   Allocations, Valid: Boolean;
+  ExpectedCompressType, SelectedCompressType: TCompressType;
 
   // 旧线缆入口必须包含其原有的默认代码页转换，不能用 UTF-8 替它修正后再计时。
   function DecodeWire: Boolean;
@@ -199,6 +200,7 @@ var
   // 语义检查、数据准备、对象预建不计时；new-request 特意把构造/析构计入循环。
   procedure Run(const Count: Integer);
   var J: Integer; R: TRequestAccess; Encoded: TBytes; EncodedFields: string;
+    LCompressType: TCompressType;
   begin
     case Mode of
       bmWire: for J := 1 to Count do
@@ -228,6 +230,11 @@ var
         begin EncodedFields := ExpectedCookies.Encode; Inc(Checksum, Length(EncodedFields)); end;
       bmAssign: for J := 1 to Count do
         begin Header.Assign(AssignSource); Inc(Checksum, Header.Count); end;
+      bmCompressChoice: for J := 1 to Count do
+        begin
+          HttpHeaderBenchCompress(ServerResponse, 1024, LCompressType);
+          Inc(Checksum, Ord(LCompressType) + 1);
+        end;
       bmServerEncode: for J := 1 to Count do
         begin Encoded := HttpHeaderBenchCreate(ServerResponse, 165); Inc(Checksum, Length(Encoded)); end;
     end;
@@ -245,6 +252,7 @@ begin
   else if ParamStr(1) = 'query-encode' then Mode := bmQueryEncode
   else if ParamStr(1) = 'cookie-encode' then Mode := bmCookieEncode
   else if ParamStr(1) = 'assign' then Mode := bmAssign
+  else if ParamStr(1) = 'compress-choice' then Mode := bmCompressChoice
   else raise Exception.Create('Unknown benchmark');
   N := StrToInt(ParamStr(3)); Check(N > 0, 'Invalid count');
   Allocations := ParamStr(4) = 'alloc';
@@ -342,6 +350,37 @@ begin
               and (Pointer(Header.Items[I].RawValue) = Pointer(AssignSource.Items[I].RawValue));
           {$ENDIF}
         end;
+      bmCompressChoice:
+        begin
+          // 三个显式fixture使用固定预期，不复用被测协商逻辑生成答案。
+          if Expected['Accept-Encoding'] = 'gzip, deflate' then
+            ExpectedCompressType := ctGZip
+          else if Expected['Accept-Encoding'] = 'br, gzip;q=0, deflate;q=1, identity;q=0, gzip;q=0' then
+            ExpectedCompressType := ctDeflate
+          else
+          begin
+            Check(Expected['Accept-Encoding'] = '', 'Unsupported compression fixture');
+            ExpectedCompressType := ctNone;
+          end;
+          Check(Request.ParseHeader(Pointer(Data), Length(Data)), 'Compression seed request invalid');
+          Server.Compressible := True;
+          Server.MinCompressSize := 1;
+          ConnectionObj.ConnectStatus := csConnected;
+          ServerResponse := TCrossHttpResponse.Create(ConnectionObj, RequestOwner, nil);
+          ServerResponseOwner := ServerResponse;
+          ServerResponseOwner.ContentType := 'application/json';
+          Valid := HttpHeaderBenchCompress(ServerResponse, 1024, SelectedCompressType);
+          Check((Valid = (ExpectedCompressType <> ctNone))
+            and (SelectedCompressType = ExpectedCompressType), 'Compression selection mismatch');
+          // 确认真实连接门槛有效，再恢复connected；不能把早退路径误当协商成本。
+          ConnectionObj.ConnectStatus := csDisconnected;
+          Valid := HttpHeaderBenchCompress(ServerResponse, 1024, SelectedCompressType);
+          Check(not Valid and (SelectedCompressType = ctNone), 'Disconnected compression gate failed');
+          ConnectionObj.ConnectStatus := csConnected;
+          Valid := HttpHeaderBenchCompress(ServerResponse, 1024, SelectedCompressType);
+          Valid := (Valid = (ExpectedCompressType <> ctNone))
+            and (SelectedCompressType = ExpectedCompressType);
+        end;
       bmServerEncode:
         begin
           Check(Request.ParseHeader(@EncodeRequest[1], Length(EncodeRequest)), 'ASCII encode seed request invalid');
@@ -395,6 +434,7 @@ begin
     else if Mode = bmFieldEncode then UnitChecksum := Length(Expected.Encode)
     else if Mode = bmQueryEncode then UnitChecksum := Length(ExpectedQuery.Encode)
     else if Mode = bmCookieEncode then UnitChecksum := Length(ExpectedCookies.Encode)
+    else if Mode = bmCompressChoice then UnitChecksum := Ord(ExpectedCompressType) + 1
     else if Mode = bmServerEncode then UnitChecksum := Length(HttpHeaderBenchCreate(ServerResponse, 165));
     // 只复用对象；TList.Clear 在两个 RTL 都释放容量，不能把它写成容量复用。
     Checksum := 0; Run(2000); // 同进程预热分支和页。

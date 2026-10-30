@@ -994,6 +994,7 @@ type
     FHttpParser: ICrossHttpParser;
     FReqLock: ILock;
     FSendFinished, FResponseFinished: Boolean;
+    FResponseReady, FResponseMustClose: Boolean;
     FReceiveDepth: Integer;
     FDeferredReceiveFailure: Boolean;
     FDeferredReceiveCode: Integer;
@@ -1805,6 +1806,8 @@ begin
     FRequest := ARequest;
     FSendFinished := False;
     FResponseFinished := False;
+    FResponseReady := False;
+    FResponseMustClose := False;
     FResponseStatus := rsIdle;
     _SetRequestStatus(rsSending);
 
@@ -1945,18 +1948,39 @@ procedure TCrossHttpClientConnection.ParseRecvData(var ABuf: Pointer;
   var ALen: Integer);
 var
   LKeep: ICrossHttpClientConnection;
+  LReject, LClose: Boolean;
 begin
   LKeep := Self;
   _ReqLock;
   try
-    if IsClosed then
+    // 检查与登记接收共用请求锁，超时先清理时不能再进入解析。
+    LReject := IsClosed or (FRequest = nil) or (FRequestObj = nil)
+      or FResponseFinished or FResponseReady or FDeferredReceiveFailure
+      or not (RequestStatus in [rsSending, rsResponding]);
+    LClose := LReject and not IsClosed;
+    if LClose then
     begin
-      ALen := 0;
-      Exit;
+      FResponseMustClose := True;
+      if (FResponseFinished or FResponseReady) and not FSendFinished
+        and (FResponseStatus in [rsIdle, rsClose]) then
+      begin
+        // 已成功的早响应仍需保活在途发送，发送结束后按关闭意图收尾。
+        FResponseStatus := rsClose;
+        LClose := False;
+      end else
+      if RequestStatus = rsIdle then
+        _SetRequestStatus(rsClose);
     end;
-    Inc(FReceiveDepth);
+    if not LReject then Inc(FReceiveDepth);
   finally
     _ReqUnlock;
+  end;
+  if LReject then
+  begin
+    ABuf := PByte(ABuf) + ALen;
+    ALen := 0;
+    if LClose then Close;
+    Exit;
   end;
   try
     _UpdateWatch;
@@ -1966,6 +1990,18 @@ begin
       FHttpParser.Decode(ABuf, ALen)
     else
       ALen := 0;
+    _ReqLock;
+    try
+      // 普通最终响应的尾部必须在回调和回池之前处理，不能归给下一请求。
+      if FResponseReady and (ALen > 0) then
+      begin
+        FResponseMustClose := True;
+        ABuf := PByte(ABuf) + ALen;
+        ALen := 0;
+      end;
+    finally
+      _ReqUnlock;
+    end;
   finally
     _LeaveReceive;
   end;
@@ -1975,8 +2011,9 @@ procedure TCrossHttpClientConnection._LeaveReceive;
 var
   LFailCode: Integer;
   LFailText: string;
-  LFinish, LFail: Boolean;
+  LFinish, LFail, LSuccess: Boolean;
 begin
+  LSuccess := False;
   LFailCode := 0;
   LFinish := False;
   LFail := False;
@@ -1995,30 +2032,49 @@ begin
         FDeferredReceiveFailure := False;
         FDeferredReceiveText := '';
       end;
+      // 写入异常、超时和解码内重入关闭优先；EOF 的 Finish 也从这里发布成功。
+      LSuccess := FResponseReady and not LFail and not LFinish;
+      // 成功标志保留到终态认领，关闭线程仍能识别已完整接收的响应。
+      if LFail or LFinish then FResponseReady := False;
     end;
   finally
     _ReqUnlock;
   end;
   // 包括流.Write重入Close；离开解码/写入栈后才通知调用方释放响应流。
   if LFail then TriggerResponseFailed(LFailCode, LFailText)
-  else if LFinish then _FinishReceive;
+  else
+  if LFinish then _FinishReceive
+  else
+  if LSuccess then TriggerResponseSuccess;
 end;
 
 procedure TCrossHttpClientConnection._FinishReceive;
 var
   LKeep: ICrossHttpClientConnection;
+  LComplete: Boolean;
 begin
   LKeep := Self;
   _ReqLock;
   try
     if FReceiveDepth > 0 then
     begin
-      FFinishReceivePending := True;
+      if FResponseReady then
+        FResponseMustClose := True
+      else
+        FFinishReceivePending := True;
       Exit;
     end;
-    Inc(FReceiveDepth);
+    // 完整响应已就绪时关闭只影响复用，不能对已重置的 Parser 再报连接丢失。
+    LComplete := FResponseReady and not FDeferredReceiveFailure and not FResponseFinished;
+    if LComplete then FResponseMustClose := True
+    else Inc(FReceiveDepth);
   finally
     _ReqUnlock;
+  end;
+  if LComplete then
+  begin
+    TriggerResponseSuccess;
+    Exit;
   end;
   try
     if FHttpParser <> nil then FHttpParser.Finish;
@@ -2409,6 +2465,7 @@ begin
       LCallback := FCallback;
       FCallback := nil;
       FResponseFinished := True;
+      FResponseReady := False;
       if AStatusCode = 408 then FResponseStatus := rsRespondTimeout
       else FResponseStatus := rsRespondFailed;
       LRequestEnded := FSendFinished;
@@ -2472,6 +2529,7 @@ begin
     FCallback := nil;
     LResponse := FResponse;
     FResponseFinished := True;
+    FResponseReady := False;
     LRequestEnded := FSendFinished;
 
     // HTTP/1.1 101 Switching Protocols: 协议升级, 连接由上层协议(如 WebSocket)接管,
@@ -2479,7 +2537,7 @@ begin
     LIsSwitching := (FResponseObj <> nil)
       and (FResponseObj.FStatusCode = 101);
 
-    if IsClosed
+    if IsClosed or FResponseMustClose
       or ((not LIsSwitching)
         and ((not (Owner as TCrossHttpClientSocket).FReUseConnection)
           or ((FRequestObj <> nil) and FRequestObj.FHeader.ContainsToken(HEADER_CONNECTION, 'close'))
@@ -2559,6 +2617,7 @@ begin
       LCallback := FCallback;
       FCallback := nil;
       FResponseFinished := True;
+      FResponseReady := False;
       FResponseStatus := rsRespondTimeout;
       LRequestEnded := FSendFinished;
 
@@ -2851,16 +2910,30 @@ begin
 end;
 
 procedure TCrossHttpClientConnection._OnParseBegin;
+var
+  LHasRequest: Boolean;
 begin
   _ReqLock;
   try
-    FResponseObj := TCrossHttpClientResponse.Create(Self);
-    FResponseObj.FStorageOptions := FResponseStorage;
-    FResponse := FResponseObj;
-
-    FResponseObj._SetResponseStream(FRequestObj.FResponseStream);
+    LHasRequest := (FRequest <> nil) and (FRequestObj <> nil);
+    if LHasRequest then
+    begin
+      FResponseObj := TCrossHttpClientResponse.Create(Self);
+      FResponseObj.FStorageOptions := FResponseStorage;
+      FResponse := FResponseObj;
+      FResponseObj._SetResponseStream(FRequestObj.FResponseStream);
+    end;
   finally
     _ReqUnlock;
+  end;
+  if not LHasRequest then
+  begin
+    // 入口之外的最后防线：无所属请求不能创建响应或继续当前解析。
+    try
+      (FHttpParser as TCrossHttpParser).Fail(400, 'Response without an active request');
+    finally
+      Close;
+    end;
   end;
 end;
 
@@ -2883,9 +2956,16 @@ begin
       FResponse := nil;
       Exit;
     end;
+    if (FResponseObj <> nil) and (FResponseObj.FStatusCode <> 101) then
+    begin
+      // Decode 返回后才能知道本批尾部；保持占用直到接收收尾检查完成。
+      FResponseReady := not FFinishReceivePending and not FDeferredReceiveFailure;
+      Exit;
+    end;
   finally
     _ReqUnlock;
   end;
+  // 升级响应保留既有发布顺序，后续字节由 WebSocket 派生连接接管。
   TriggerResponseSuccess;
 end;
 

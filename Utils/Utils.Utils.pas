@@ -632,36 +632,6 @@ type
   end;
   PAsciiBlock = ^TAsciiBlock;
 
-  function _IsUTF8(const P, PEnd: PByte; out AUTF8Size: ShortInt): Boolean;
-  var
-    I: ShortInt;
-  begin
-    Result := False;
-
-    // UTF8最多6个字节
-    // 第一个字节高位有多少个1就表示这个字符要占用几个字节
-
-    if (P^ and $FE) = $FC then      // 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 6
-    else if (P^ and $FC) = $F8 then // 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 5
-    else if (P^ and $F8) = $F0 then // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 4
-    else if (P^ and $F0) = $E0 then // 1110xxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 3
-    else if (P^ and $E0) = $C0 then // 110xxxxx 10xxxxxx
-      AUTF8Size := 2
-    else
-      Exit;
-
-    if (P + AUTF8Size > PEnd) then Exit;
-
-    for I := 1 to AUTF8Size - 1 do
-      if (P[I] and $C0 <> $80) then Exit;
-
-    Result := True;
-  end;
-
 var
   P, PEnd: PByte;
   LUTF8Size: ShortInt;
@@ -672,6 +642,53 @@ const
   {$ELSE}
   ASCII_HIGH_BITS = NativeUInt($80808080);
   {$ENDIF}
+  function _IsUTF8(const P, PEnd: PByte; out AUTF8Size: ShortInt): Boolean;
+  var
+    I: ShortInt;
+  begin
+    Result := False;
+    // 续字节和特殊范围在同一分支检查；旧式序列仍按原规则接受，禁用长度复用。
+    case P^ of
+      $C0..$DF:
+        begin
+          AUTF8Size := 2;
+          if (PEnd - P < 2) then Exit;
+          if (P[1] and $C0 <> $80) then Exit;
+          if (P[0] < $C2) then LExactCount := False;
+        end;
+      $E0..$EF:
+        begin
+          AUTF8Size := 3;
+          if (PEnd - P < 3) then Exit;
+          if (P[1] and $C0 <> $80) or (P[2] and $C0 <> $80) then Exit;
+          if ((P[0] = $E0) and (P[1] < $A0)) or
+            ((P[0] = $ED) and (P[1] >= $A0)) then
+            LExactCount := False;
+        end;
+      $F0..$F7:
+        begin
+          AUTF8Size := 4;
+          if (PEnd - P < 4) then Exit;
+          if (P[1] and $C0 <> $80) or (P[2] and $C0 <> $80) or
+            (P[3] and $C0 <> $80) then Exit;
+          if (P[0] > $F4) or ((P[0] = $F0) and (P[1] < $90)) or
+            ((P[0] = $F4) and (P[1] >= $90)) then
+            LExactCount := False;
+        end;
+      $F8..$FD:
+        begin
+          if (P[0] < $FC) then AUTF8Size := 5 else AUTF8Size := 6;
+          if (PEnd - P < AUTF8Size) then Exit;
+          for I := 1 to AUTF8Size - 1 do
+            if (P[I] and $C0 <> $80) then Exit;
+          LExactCount := False;
+        end;
+    else
+      Exit;
+    end;
+    Result := True;
+  end;
+
 begin
   P := ABuf;
   PEnd := P + ABufSize;
@@ -701,29 +718,9 @@ begin
         ACharCount := -1;
         Exit(False);
       end;
-      // 只对标准有效序列复用长度；旧式接受序列仍交给原 RTL 决定结果/异常。
       case LUTF8Size of
-        2:
-          begin
-            Dec(ACharCount);
-            if (P[0] < $C2) then LExactCount := False;
-          end;
-        3:
-          begin
-            Dec(ACharCount, 2);
-            if ((P[0] = $E0) and (P[1] < $A0)) or
-              ((P[0] = $ED) and (P[1] >= $A0)) then
-              LExactCount := False;
-          end;
-        4:
-          begin
-            Dec(ACharCount, 2);
-            if (P[0] > $F4) or ((P[0] = $F0) and (P[1] < $90)) or
-              ((P[0] = $F4) and (P[1] >= $90)) then
-              LExactCount := False;
-          end;
-      else
-        LExactCount := False;
+        2: Dec(ACharCount);
+        3, 4: Dec(ACharCount, 2);
       end;
       Inc(P, LUTF8Size);
     end;

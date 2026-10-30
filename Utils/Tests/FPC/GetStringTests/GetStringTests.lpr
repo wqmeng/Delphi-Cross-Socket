@@ -338,6 +338,14 @@ begin
   CheckBytes([$F4, $8F, $BF, $BF]); CheckBytes([$F4, $90, $80, $80]);
   CheckBytes([$F5, $80, $80, $80]); CheckBytes([$F8, $80, $80, $80, $80]);
   CheckBytes([$FC, $80, $80, $80, $80, $80]); CheckBytes([$F0, $9F, $98]);
+  // 兼容状态一旦无效，不能被同一缓冲区后续的合法序列恢复。
+  CheckBytes([$41, $C0, $80, $C2, $80, $42]);
+  CheckBytes([$41, $E0, $80, $80, $E4, $B8, $AD, $42]);
+  CheckBytes([$41, $ED, $A0, $80, $F0, $9F, $98, $80, $42]);
+  CheckBytes([$41, $F4, $90, $80, $80, $E4, $B8, $AD, $42]);
+  CheckBytes([$41, $F5, $80, $80, $80, $C2, $80, $42]);
+  CheckBytes([$41, $F8, $88, $80, $80, $80, $C2, $80, $42]);
+  CheckBytes([$41, $FC, $84, $80, $80, $80, $80, $E4, $B8, $AD, $42]);
   for E in Encodings do
   begin
     Same(nil, 8, E, 'nil'); Same(nil, -1, E, 'nil negative');

@@ -720,6 +720,7 @@ end;
 {$I RequestPathCases.inc}
 {$I RequestQueryCases.inc}
 {$I RequestCookieScanCases.inc}
+{$I RequestCookieEncodeCases.inc}
 {$I UrlDecodeCases.inc}
 {$I UrlEncodeCases.inc}
 {$I QueryEncodeCases.inc}
@@ -742,6 +743,7 @@ begin
       Writeln('request-paths'); Inc(Checks, RunRequestPathTests);
       Writeln('request-query'); Inc(Checks, RunRequestQueryTests);
       Inc(Checks, RunRequestCookieScanTests);
+      Inc(Checks, RunRequestCookieEncodeTests);
       Writeln('url-decode'); Inc(Checks, RunUrlDecodeTests);
       Writeln('url-encode'); Inc(Checks, RunUrlEncodeTests);
       Writeln('query-encode'); Inc(Checks, RunQueryEncodeTests);

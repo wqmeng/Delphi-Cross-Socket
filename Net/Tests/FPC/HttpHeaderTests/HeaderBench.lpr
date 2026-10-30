@@ -7,7 +7,7 @@ uses
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
-  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode);
+  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode, bmCookieEncode);
   {$IFDEF FPC}
   TBenchManager = TMemoryManager;
   TBenchSize = PtrUInt;
@@ -71,6 +71,7 @@ var
   HeaderText, FirstLine, Target, ExpectedPath, FieldText: string;
   Header, Expected: THttpHeader;
   ExpectedQuery, LDecodedQuery: THttpUrlParams;
+  ExpectedCookies, LDecodedCookies: TRequestCookies;
   Request: TRequestAccess;
   Response: TResponseAccess;
   ServerResponse: TCrossHttpResponse;
@@ -223,6 +224,8 @@ var
         begin EncodedFields := Expected.Encode; Inc(Checksum, Length(EncodedFields)); end;
       bmQueryEncode: for J := 1 to Count do
         begin EncodedFields := ExpectedQuery.Encode; Inc(Checksum, Length(EncodedFields)); end;
+      bmCookieEncode: for J := 1 to Count do
+        begin EncodedFields := ExpectedCookies.Encode; Inc(Checksum, Length(EncodedFields)); end;
       bmServerEncode: for J := 1 to Count do
         begin Encoded := HttpHeaderBenchCreate(ServerResponse, 165); Inc(Checksum, Length(Encoded)); end;
     end;
@@ -238,6 +241,7 @@ begin
   else if ParamStr(1) = 'encode-legacy' then Mode := bmEncodeLegacy
   else if ParamStr(1) = 'field-encode' then Mode := bmFieldEncode
   else if ParamStr(1) = 'query-encode' then Mode := bmQueryEncode
+  else if ParamStr(1) = 'cookie-encode' then Mode := bmCookieEncode
   else raise Exception.Create('Unknown benchmark');
   N := StrToInt(ParamStr(3)); Check(N > 0, 'Invalid count');
   Allocations := ParamStr(4) = 'alloc';
@@ -306,6 +310,21 @@ begin
             LDecodedQuery.Free;
           end;
         end;
+      bmCookieEncode:
+        begin
+          // 解析和回读在计时外；只借用Request持有的Cookie集合，不转移所有权。
+          Check(Request.ParseHeader(Pointer(Data), Length(Data)), 'Cookie seed request invalid');
+          ExpectedCookies := Request.Cookies;
+          FieldText := ExpectedCookies.Encode;
+          LDecodedCookies := TRequestCookies.Create;
+          try
+            Valid := LDecodedCookies.Decode(FieldText);
+            if ExpectedCookies.Count = 0 then Valid := (FieldText = '') and not Valid;
+            Valid := Valid and SameParams(LDecodedCookies, ExpectedCookies);
+          finally
+            LDecodedCookies.Free;
+          end;
+        end;
       bmServerEncode:
         begin
           Check(Request.ParseHeader(@EncodeRequest[1], Length(EncodeRequest)), 'ASCII encode seed request invalid');
@@ -347,6 +366,8 @@ begin
     {$ENDIF}
     if Mode = bmQueryEncode then
       Writeln('VALID query_fields=', ExpectedQuery.Count, ' input_bytes=', Length(Data), ' entry_size=', EntrySize)
+    else if Mode = bmCookieEncode then
+      Writeln('VALID cookie_fields=', ExpectedCookies.Count, ' input_bytes=', Length(Data), ' entry_size=', EntrySize)
     else
       Writeln('VALID fields=', Expected.Count, ' header_bytes=', Length(Data), ' entry_size=', EntrySize, ' raw_value_bytes=', RawBytes);
     // 纯语义验证不预热、不计时，便于在其它候选准备期间检查 fixture 与所有权。
@@ -356,6 +377,7 @@ begin
     else if Mode = bmEncodeLegacy then UnitChecksum := Length(EncodeLegacyHeader)
     else if Mode = bmFieldEncode then UnitChecksum := Length(Expected.Encode)
     else if Mode = bmQueryEncode then UnitChecksum := Length(ExpectedQuery.Encode)
+    else if Mode = bmCookieEncode then UnitChecksum := Length(ExpectedCookies.Encode)
     else if Mode = bmServerEncode then UnitChecksum := Length(HttpHeaderBenchCreate(ServerResponse, 165));
     // 只复用对象；TList.Clear 在两个 RTL 都释放容量，不能把它写成容量复用。
     Checksum := 0; Run(2000); // 同进程预热分支和页。

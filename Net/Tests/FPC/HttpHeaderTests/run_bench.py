@@ -41,6 +41,8 @@ EXTRA_CASES += [('request', fixture) for fixture in ('url-escaped', 'url-unicode
 # query编码只显式选择，使用相同fixture预建参数，默认all保持不变。
 EXTRA_CASES += [('query-encode', fixture) for fixture in ('small', 'url-escaped', 'url-unicode', 'url-long-tail')]
 EXTRA_CASES += [('query-encode', 'query-many')]
+# Cookie输出仅显式计时，解析集合及回读验证不计入。
+EXTRA_CASES += [('cookie-encode', fixture) for fixture in ('cookie-small', 'cookie-many', 'cookie')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -112,6 +114,8 @@ def fixtures(root):
     values = {'original': original, 'ascii': original.replace('有模式窗口'.encode(), b'window'), 'small': small}
     values['many'] = small[:-2] + b''.join(f'X-Field-{i:02d}: '.encode() + b'a' * 32 + b'\r\n' for i in range(36)) + b'\r\n'
     values['cookie'] = small[:-2] + b'Cookie: session=' + b'a' * 8192 + b'\r\n\r\n'
+    values['cookie-small'] = small[:-2] + b'Cookie: a=1; b=2\r\n\r\n'
+    values['cookie-many'] = small[:-2] + b'Cookie: ' + b'; '.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)) + b'\r\n\r\n'
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
     values['query-many'] = small.replace(b'/bench?a=1&b=2', b'/bench?' + b'&'.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)))
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')

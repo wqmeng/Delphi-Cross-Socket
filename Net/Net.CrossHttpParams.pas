@@ -2246,15 +2246,18 @@ begin
   Result := '';
   for I := 0 to FParams.Count - 1 do
   begin
-    if (I > 0) then
-      Result := Result + '; ';
     LName := FParams[I].Name;
     LValue := FParams[I].Value;
     if not _IsHttpToken(LName) then
       raise Exception.CreateFmt('Invalid cookie name: %s', [LName]);
     if not _IsCookieOctets(LValue) then
       raise Exception.CreateFmt('Invalid cookie value: %s', [LName]);
-    Result := Result + LName + '=' + LValue;
+    // 校验通过后一次追加完整项，避免先追加分隔符而重复扩容或复制前缀。
+    // 空值仍输出等号；按索引区分首项，保持顺序和重复名称。
+    if I = 0 then
+      Result := LName + '=' + LValue
+    else
+      Result := Result + '; ' + LName + '=' + LValue;
   end;
 end;
 

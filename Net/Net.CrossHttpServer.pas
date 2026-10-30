@@ -3640,21 +3640,27 @@ end;
 function TRouteNode.MatchRouter(const AMethod: string;
   out ARouter: IRouter): Boolean;
 var
+  I: Integer;
   LRouter: IRouter;
   LRegEx: IRegEx;
 begin
   Result := False;
 
-  // 优先从静态方法路由中查找
-  if FStaticRouteMethodItems.TryGetValue(AMethod.ToLower, LRouter) then
+  // 空表不需要生成小写副本；非空时仍按原规则优先匹配静态方法。
+  if FStaticRouteMethodItems.Count > 0 then
   begin
-    ARouter := LRouter;
-    Exit(True);
+    if FStaticRouteMethodItems.TryGetValue(AMethod.ToLower, LRouter) then
+    begin
+      ARouter := LRouter;
+      Exit(True);
+    end;
   end;
 
   // 遍历所有正则方法路由项, 找到第一个匹配的
-  for LRouter in FRegexRouteMethodItems do
+  // 树匹配持有读锁，列表在遍历期间不变；索引遍历省去枚举器对象。
+  for I := 0 to FRegexRouteMethodItems.Count - 1 do
   begin
+    LRouter := FRegexRouteMethodItems[I];
     // 正则表达式方法使用局部匹配器, 避免并发请求共享匹配状态
     LRegEx := LRouter.RegEx;
     if (LRegEx <> nil) then
@@ -3959,6 +3965,7 @@ function TCrossHttpRouterTree.MatchRouterInNode(ANode: TRouteNode;
   const APathSegments: TArray<string>; AIndex: Integer; const AMethod: string;
   const ARequest: ICrossHttpRequest; out ARouter: IRouter): Boolean;
 var
+  I: Integer;
   LSegment, LWildcardValue: string;
   LChild: TRouteNode;
 begin
@@ -3986,17 +3993,22 @@ begin
 
   LSegment := APathSegments[AIndex];
 
-  // 1. 首先尝试精确匹配静态节点
-  if ANode.StaticChildren.TryGetValue(LSegment.ToLower, LChild) then
+  // 1. 先匹配静态节点；空表跳过无用途的小写转换，后续正则仍使用原始片段。
+  if ANode.StaticChildren.Count > 0 then
   begin
-    Result := MatchRouterInNode(LChild, APathSegments, AIndex + 1, AMethod,
-      ARequest, ARouter);
-    if Result then Exit;
+    if ANode.StaticChildren.TryGetValue(LSegment.ToLower, LChild) then
+    begin
+      Result := MatchRouterInNode(LChild, APathSegments, AIndex + 1, AMethod,
+        ARequest, ARouter);
+      if Result then Exit;
+    end;
   end;
 
   // 2. 尝试正则节点(支持多参数)
-  for LChild in ANode.RegexChildren do
+  // 同一读锁覆盖递归匹配；保持列表顺序，避免空列表也分配枚举器。
+  for I := 0 to ANode.RegexChildren.Count - 1 do
   begin
+    LChild := ANode.RegexChildren[I];
     if LChild.Segment.RegexMatch(LSegment, ARequest) then
     begin
       // 普通正则节点, 继续递归匹配

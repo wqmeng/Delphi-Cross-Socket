@@ -2687,6 +2687,7 @@ function TCrossHttpClientConnection._CreateRequestHeader(const ABodySize: Int64;
 var
   LHeaderStr, LCookieStr, LPathStr: string;
   LParam: TParamEntry;
+  I: Integer;
 begin
   _ReqLock;
   try
@@ -2755,8 +2756,10 @@ begin
     begin
       TCrossHttpUtils.CheckUtf16(FRequestObj.FPath);
       // 初始化回调可独立修改 Query，它不一定与原 FPathAndParams 同步，所以也检查当前项。
-      for LParam in FRequestObj.FQuery do
+      // 校验过程不修改Query；索引遍历省去空/非空集合都要创建的枚举器对象。
+      for I := 0 to FRequestObj.FQuery.Count - 1 do
       begin
+        LParam := FRequestObj.FQuery.Items[I];
         TCrossHttpUtils.CheckUtf16(LParam.Name);
         TCrossHttpUtils.CheckUtf16(LParam.Value);
       end;
@@ -3469,7 +3472,8 @@ function TCrossHttpClientResponse.ParseHeader(const ADataPtr: Pointer;
 var
   I, LLineEnd: Integer;
   P: PByte;
-  LHeader: TParamEntry;
+  LCookieValues: TArray<string>;
+  LCookieValue: string;
   LCookie: TResponseCookie;
 begin
   Result := False;
@@ -3505,15 +3509,15 @@ begin
     and ((FHttpVer = 'HTTP/1.1') or FHeader.ContainsToken(HEADER_CONNECTION, 'keep-alive'));
 
   // 5. 从完整字段集合派生响应属性。逐项读取 Set-Cookie，保留重复字段，不能合并为一个值。
-  for LHeader in FHeader do
-  begin
-    if TStrUtils.SameText(LHeader.Name, HEADER_SETCOOKIE) then
+  // 只收集匹配项的Value，避免为每个普通字段复制Name/Value/raw整条记录。
+  // GetHeaderValues保留顺序和重复项；没有Set-Cookie时不申请值数组。
+  if FHeader.GetHeaderValues(HEADER_SETCOOKIE, LCookieValues) then
+    for LCookieValue in LCookieValues do
     begin
-      LCookie := TResponseCookie.Create(LHeader.Value, FConnectionObj.FHost);
+      LCookie := TResponseCookie.Create(LCookieValue, FConnectionObj.FHost);
       if (LCookie.Name <> '') then
         FCookies.Add(LCookie);
     end;
-  end;
 
   FContentType := FHeader[HEADER_CONTENT_TYPE];
   // 此处只是响应属性；CL/TE 的合法性、重复值和正文定界由外层 Parser 统一检查。
@@ -3790,9 +3794,8 @@ end;
 function TCrossHttpClientSocket._MakeServerDockKey(const AProtocol,
   AHost: string; const APort: Word): string;
 begin
-  Result := TStrUtils.Format('%s://%s:%d', [
-    AProtocol, AHost, APort
-  ]);
+  // 键保留协议/主机原文和十进制端口；直接拼接省去FormatSettings复制及格式扫描。
+  Result := AProtocol + '://' + AHost + ':' + APort.ToString;
 end;
 
 procedure TCrossHttpClientSocket._UnlockServerDock;

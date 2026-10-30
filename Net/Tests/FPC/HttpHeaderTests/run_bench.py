@@ -47,6 +47,18 @@ EXTRA_CASES += [('cookie-encode', fixture) for fixture in ('cookie-small', 'cook
 EXTRA_CASES += [('assign', fixture) for fixture in ('small', 'many', 'unicode')]
 # 压缩协商只显式选择，计时真实_CheckCompress但不包含压缩或发送。
 EXTRA_CASES += [('compress-choice', fixture) for fixture in ('compress-none', 'compress-basic', 'compress-q')]
+# 公共路由树匹配，路径数组预建，保留静态对照及通配符/正则/未命中。
+EXTRA_CASES += [('route-match', fixture) for fixture in ('route-static', 'route-wildcard', 'route-regex', 'route-miss')]
+EXTRA_CASES += [('status-text', fixture) for fixture in ('status-200', 'status-511', 'status-unknown')]
+EXTRA_CASES += [('mime-type', fixture) for fixture in ('mime-first', 'mime-text', 'mime-unknown')]
+EXTRA_CASES += [('mime-type', 'mime-extension-only')]
+EXTRA_CASES += [('response-cookies', fixture) for fixture in ('response-none', 'response-one', 'response-early', 'response-many')]
+EXTRA_CASES += [('dock-key', fixture) for fixture in ('dock-short', 'dock-ipv6', 'dock-long')]
+EXTRA_CASES += [('server-cookies', fixture) for fixture in ('server-cookie-none', 'server-cookie-bare', 'server-cookie-full', 'server-cookie-mixed4', 'server-cookie-mixed17', 'server-cookie-long')]
+EXTRA_CASES += [('html-encode', fixture) for fixture in ('html-plain', 'html-markup', 'html-long-tail')]
+EXTRA_CASES += [('route-path', fixture) for fixture in ('path-short', 'path-many', 'path-long', 'path-unicode', 'path-unsplit')]
+# 客户端完整请求头生成，构造/URL解析在计时外；只显式选择。
+EXTRA_CASES += [('client-encode', fixture) for fixture in ('noquery', 'small', 'query-many', 'url-unicode')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -123,6 +135,36 @@ def fixtures(root):
     values['compress-none'] = small
     values['compress-basic'] = small[:-2] + b'Accept-Encoding: gzip, deflate\r\n\r\n'
     values['compress-q'] = small[:-2] + b'Accept-Encoding: br, gzip;q=0, deflate;q=1, identity;q=0, gzip;q=0\r\n\r\n'
+    values['route-static'] = small.replace(b'/bench?a=1&b=2', b'/fixed')
+    values['route-wildcard'] = small.replace(b'/bench?a=1&b=2', b'/files/a/b?x=1')
+    values['route-regex'] = small.replace(b'/bench?a=1&b=2', b'/items/42')
+    values['route-miss'] = small.replace(b'/bench?a=1&b=2', b'/missing')
+    values['path-short'] = small.replace(b'/bench?a=1&b=2', b'/document')
+    values['path-many'] = small.replace(b'/bench?a=1&b=2', b'/' + b'/'.join(f'part{i:02d}'.encode('ascii') for i in range(40)))
+    values['path-long'] = small.replace(b'/bench?a=1&b=2', b'/' + b'x' * 1024 + b'/end')
+    values['path-unicode'] = small.replace(b'/bench?a=1&b=2', '//文档///路径/😀//文件/'.encode('utf-8'))
+    values['path-unsplit'] = small.replace(b'/bench?a=1&b=2', b'document')
+    values['status-200'] = small.replace(b'/bench?a=1&b=2', b'/200')
+    values['status-511'] = small.replace(b'/bench?a=1&b=2', b'/511')
+    values['status-unknown'] = small.replace(b'/bench?a=1&b=2', b'/999')
+    values['mime-first'] = small.replace(b'/bench?a=1&b=2', b'/file.ez')
+    values['mime-text'] = small.replace(b'/bench?a=1&b=2', b'/file.txt')
+    values['mime-unknown'] = small.replace(b'/bench?a=1&b=2', b'/file.unknown-extension')
+    values['response-none'] = small
+    values['response-one'] = small[:-2] + b'Set-Cookie: session=one\r\n\r\n'
+    response_line, response_fields = small.split(b'\r\n', 1)
+    values['response-early'] = response_line + b'\r\nSet-Cookie: session=one\r\n' + response_fields[:-2] + b''.join(f'X-Response-{i:02d}: value\r\n'.encode('ascii') for i in range(36)) + b'\r\n'
+    values['response-many'] = small[:-2] + b''.join((('Set-Cookie' if i % 2 == 0 else 'set-cookie') + f': c{i % 4}=value-{i}\r\n').encode('ascii') for i in range(16)) + b'\r\n'
+    values['dock-short'] = small[:-2] + b'X-Key-Protocol: http\r\nX-Key-Host: example.test\r\nX-Key-Port: 80\r\n\r\n'
+    values['dock-ipv6'] = small[:-2] + b'X-Key-Protocol: https\r\nX-Key-Host: 2001:db8::1\r\nX-Key-Port: 443\r\n\r\n'
+    long_host = b'a' * 63 + b'.' + b'b' * 63 + b'.' + b'c' * 63 + b'.test'
+    values['dock-long'] = small[:-2] + b'X-Key-Protocol: https\r\nX-Key-Host: ' + long_host + b'\r\nX-Key-Port: 65535\r\n\r\n'
+    for cookie_shape in ('none', 'bare', 'full', 'mixed4', 'mixed17', 'long'):
+        values['server-cookie-' + cookie_shape] = small
+    values['html-plain'] = small[:-2] + b'X-Html-Text: File_2026-report.txt\r\n\r\n'
+    values['html-markup'] = small[:-2] + b'X-Html-Text: <a href="x&y">tag</a>\r\n\r\n'
+    values['html-long-tail'] = small[:-2] + b'X-Html-Text: ' + b'x' * 8192 + b'&\r\n\r\n'
+    values['mime-extension-only'] = small.replace(b'/bench?a=1&b=2', b'/.txt')
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
     values['query-many'] = small.replace(b'/bench?a=1&b=2', b'/bench?' + b'&'.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)))
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')
@@ -143,7 +185,7 @@ def fixtures(root):
 def freeze_harness(root):
     folder = root / 'harness'
     folder.mkdir(exist_ok=False)
-    names = ['run_bench.py', 'HeaderBench.lpr', 'HeaderBench.dpr', 'HeaderMemoryBench.lpr', 'HeaderMemoryBench.dpr']
+    names = ['run_bench.py', 'HeaderBench.lpr', 'HeaderBench.dpr', 'HeaderMemoryBench.lpr', 'HeaderMemoryBench.dpr', 'DockKeyChecks.inc']
     for name in names:
         shutil.copy2(HERE / name, folder / name)
     shutil.copy2(HERE.parent / 'HttpHotPathTests/run_http_bench.py', folder / 'run_http_bench.py')
@@ -253,6 +295,34 @@ def server_overlay(source, out):
     return overlay
 
 
+def client_overlay(source, out):
+    # 同单元薄包装仅存在于编译副本，生产私有方法及访问级别保持不变。
+    original = (source / 'Net/Net.CrossHttpClient.pas').read_bytes()
+    text = original.decode('utf-8-sig')
+    declaration = 'function HttpHeaderBenchDockKey(const ASocket: TCrossHttpClientSocket; const AProtocol, AHost: string; const APort: Word): string;'
+    client_declaration = 'function HttpHeaderBenchClientCreate(const AConnection: TCrossHttpClientConnection; const ARequest: TCrossHttpClientRequest): TBytes;'
+    match = re.search(r'^implementation\s*$', text, re.M)
+    end = text.rfind('end.')
+    if not match or end < 0:
+        raise RuntimeError('HttpClient unit boundary missing')
+    wrapper = '{$IFDEF DOCK_KEY_BENCH}\n' + declaration + '\nbegin\n  Result := ASocket._MakeServerDockKey(AProtocol, AHost, APort);\nend;\n{$ENDIF}\n\n'
+    wrapper += ('{$IFDEF CLIENT_ENCODE_BENCH}\n' + client_declaration + '\nbegin\n'
+                '  // 请求由基准接口持有；只在调用期间借用指针，不进入网络/调度链。\n'
+                '  AConnection.FRequestObj := ARequest;\n'
+                '  try\n    Result := AConnection._CreateRequestHeader(0, False);\n'
+                '  finally\n    AConnection.FRequestObj := nil;\n  end;\nend;\n{$ENDIF}\n\n')
+    text = text[:end] + wrapper + text[end:]
+    declarations = ('{$IFDEF DOCK_KEY_BENCH}\n' + declaration + '\n{$ENDIF}\n'
+                    '{$IFDEF CLIENT_ENCODE_BENCH}\n' + client_declaration + '\n{$ENDIF}\n\n')
+    text = text[:match.start()] + declarations + text[match.start():]
+    overlay = out / 'bench-source'
+    overlay.mkdir(exist_ok=True)
+    data = ('\ufeff' + text.replace('\r\n', '\n').replace('\n', '\r\n')).encode('utf-8')
+    (overlay / 'Net.CrossHttpClient.pas').write_bytes(data)
+    save(out / 'client-overlay.json', {'purpose': '同单元薄包装真实_MakeServerDockKey/_CreateRequestHeader，构造和语义检查在计时外，请求指针仅调用期间借用',
+         'frozen_source_sha256': sha(original), 'overlay_sha256': sha(data)})
+
+
 def build_micro(root, role, target, program="HeaderBench"):
     source = root / role / 'source'
     out = root / role / target
@@ -260,9 +330,20 @@ def build_micro(root, role, target, program="HeaderBench"):
     units = out / 'units'
     units.mkdir(exist_ok=True)
     search = ([server_overlay(source, out)] if program == 'HeaderBench' else []) + [source / 'Net', source / 'Utils', CN]
+    if program == 'HeaderBench':
+        client_overlay(source, out)
     harness = root / 'harness' if (root / 'harness').exists() else HERE
     out_path = output_path(source)
     defines = ['OUT_' + out_path['mode'].upper()]
+    if program == 'HeaderBench':
+        # 测试宏必须两侧一致，缺少工厂的旧版本仍可使用原有模式。
+        client_sources = [(root / side / 'source/Net/Net.CrossHttpClient.pas').read_text(encoding='utf-8-sig') for side in ('before', 'after')]
+        if all('function NewHttpSendTestConnection(' in text and 'procedure StopHttpTimeoutTimerForTest(' in text for text in client_sources):
+            defines += ['CROSS_HTTP_SEND_TESTS', 'CROSS_HTTP_TIMEOUT_TESTS', 'COOKIE_RESPONSE_BENCH']
+            if all('function TCrossHttpClientConnection._CreateRequestHeader(' in text for text in client_sources):
+                defines.append('CLIENT_ENCODE_BENCH')
+            if all('function TCrossHttpClientSocket._MakeServerDockKey(' in text for text in client_sources):
+                defines.append('DOCK_KEY_BENCH')
     if role_flags(root, role):
         defines.append('HEADER_BYTES')
     if target == 'fpc64':

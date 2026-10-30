@@ -1381,10 +1381,11 @@ implementation
 
 class function TCrossHttpUtils.GetHttpStatusText(const AStatusCode: Integer): string;
 var
-  LStatusItem: THttpStatus;
+  I: Integer;
 begin
-  for LStatusItem in STATUS_CODES do
-    if (LStatusItem.Code = AStatusCode) then Exit(LStatusItem.Text);
+  // 比较时只读Code，命中才取Text，无需先复制含字符串的整条记录。
+  for I := Low(STATUS_CODES) to High(STATUS_CODES) do
+    if (STATUS_CODES[I].Code = AStatusCode) then Exit(STATUS_CODES[I].Text);
   Result := AStatusCode.ToString;
 end;
 
@@ -1501,7 +1502,8 @@ var
 begin
   if (AInput = '') then Exit('');
 
-  SetLength(Result, Length(AInput) * 10);
+  // 每个输入码元最多转义为6个码元，例如双引号转义为 &quot;。
+  SetLength(Result, Length(AInput) * 6);
   LSp := PChar(AInput);
   LRp := PChar(Result);
   // Convert: &, <, >, "
@@ -1773,12 +1775,13 @@ end;
 class function TCrossHttpUtils.GetFileMIMEType(const AFileName: string): string;
 var
   LExt: string;
-  LMimeItem: TMimeValue;
+  I: Integer;
 begin
   LExt := ExtractFileExt(AFileName).Substring(1);
-  for LMimeItem in MIME_TYPES do
-    if TStrUtils.SameText(LMimeItem.Key, LExt) then
-      Exit(LMimeItem.Value);
+  // 保留原比较和首项匹配规则，只在命中时读取Value，省去逐项记录中转。
+  for I := Low(MIME_TYPES) to High(MIME_TYPES) do
+    if TStrUtils.SameText(MIME_TYPES[I].Key, LExt) then
+      Exit(MIME_TYPES[I].Value);
   Result := TMediaType.APPLICATION_OCTET_STREAM;
 end;
 

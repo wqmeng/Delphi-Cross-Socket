@@ -1371,7 +1371,8 @@ begin
     end;
     Inc(P);
   end;
-  SetLength(AValues, LCount);
+  // 长度相同时不再调用SetLength，避免不必要的重分配请求；需要缩容时仍照常处理。
+  if Length(AValues) <> LCount then SetLength(AValues, LCount);
 end;
 
 function THttpHeader.ContainsToken(const AName, AToken: string): Boolean;

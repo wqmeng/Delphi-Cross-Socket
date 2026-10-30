@@ -99,11 +99,24 @@ def client(exe, case):
                 if case.startswith('invalid-'):
                     assert not received, f'非法发送泄漏字节: {received!r}'
                 else:
-                    assert received.startswith((b'HEAD' if case == 'head-metadata' else b'GET') + b' /test HTTP/1.1\r\n'), received
+                    # 逐字节核对动态Query的名称/值编码及重复项顺序，不用被测编码器生成预期。
+                    target = (b'/test?dup=%E4%B8%AD%E6%96%87&dup&a%20b=x%2By%26%3D%2F%23&emoji=%F0%9F%98%80'
+                              if case == 'query-values' else b'/test')
+                    assert received.startswith((b'HEAD' if case == 'head-metadata' else b'GET') + b' ' + target + b' HTTP/1.1\r\n'), received
                     assert 'X-Text: 中文😀\r\n'.encode() in received, received
                     assert not received.startswith(b'\xef\xbb\xbf'), received
                     response = ('HTTP/1.1 200 中文\r\nX-Text: 中文\r\nSet-Cookie: a=1\r\n'
                                 'Set-Cookie: b=2\r\nContent-Length: 0\r\nConnection: close\r\n\r\n').encode()
+                    if case == 'cookie-values':
+                        # 保留重复名称、字段名大小写及非法Cookie；测试库不能替客户端过滤。
+                        response = (b'HTTP/1.1 200 OK\r\n'
+                                    b'Set-Cookie: a=1; Path=/first; HttpOnly\r\n'
+                                    b'X-Between: preserved\r\n'
+                                    b'sEt-CoOkIe: a=2; Max-Age=60; Secure\r\n'
+                                    b'SET-COOKIE: empty=\r\n'
+                                    b'Set-Cookie: bad name=value\r\n'
+                                    b'Set-Cookie: no-equals\r\n'
+                                    b'Content-Length: 0\r\nConnection: close\r\n\r\n')
                     if case == 'opaque-response':
                         response = response.replace('X-Text: 中文'.encode(), b'X-Text: \xfe').replace(b'Content-Length: 0', b'Content-Length: 3') + b'abc'
                     if case == 'head-metadata':
@@ -258,7 +271,7 @@ def main():
         print(target, text.strip(), flush=True)
         rows.extend(server(exe, output))
         print(target, 'server TCP 10/10', flush=True)
-        for case in ('valid', 'opaque-response', 'empty-response', 'head-metadata', 'bad-response', 'length-bom', 'transfer-bom', 'invalid-field', 'invalid-utf16', 'invalid-method', 'invalid-query', 'invalid-query-name'):
+        for case in ('valid', 'cookie-values', 'opaque-response', 'empty-response', 'head-metadata', 'bad-response', 'length-bom', 'transfer-bom', 'invalid-field', 'invalid-utf16', 'invalid-method', 'invalid-query', 'invalid-query-name', 'invalid-query-tail', 'query-values'):
             rows.append(client(exe, case))
             print(target, case, rows[-1]['output'], flush=True)
         (output / 'results.json').write_text(json.dumps(rows, indent=2), encoding='utf-8')

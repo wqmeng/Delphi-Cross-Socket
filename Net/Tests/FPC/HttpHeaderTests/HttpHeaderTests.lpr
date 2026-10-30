@@ -6,7 +6,7 @@ uses
   {$IFDEF MSWINDOWS}Windows,{$ENDIF}
   SysUtils, Classes, SyncObjs, Net.CrossHttpParams, Net.CrossHttpUtils,
   Net.CrossHttpServer, Net.CrossHttpClient, Net.CrossSocket.Base, Net.SocketAPI,
-  Utils.Utils;
+  Utils.Utils, Utils.StrUtils;
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
@@ -678,23 +678,69 @@ begin
         // 回调可修改 Query 而不更新原 URL 文本，用它验证发送端没有漏掉动态参数校验。
         if Kind = 'invalid-query' then R.Query['q'] := #$D800;
         if Kind = 'invalid-query-name' then R.Query[#$DC00] := 'q';
+        if Kind = 'invalid-query-tail' then
+        begin
+          R.Query.Add('ok', 'before', True);
+          R.Query.Add('bad', #$D800, True);
+        end;
+        if Kind = 'query-values' then
+        begin
+          // 多项/重复名/空值经过校验后仍按插入顺序编码，不依赖原URL的query文本。
+          R.Query.Add('dup', '中文', True);
+          R.Query.Add('dup', '', True);
+          R.Query.Add('a b', 'x+y&=/#', True);
+          R.Query.Add('emoji', #$D83D#$DE00, True);
+        end;
       end,
       procedure(const R: ICrossHttpClientResponse)
+      var
+        LCookie: TResponseCookie;
+        LCookieValues: TArray<string>;
       begin
         Inc(Calls);
         try
-          if (Kind = 'valid') or ((Kind = 'opaque-response') and AcceptOpaque) then
+          if (Kind = 'valid') or (Kind = 'query-values')
+            or ((Kind = 'opaque-response') and AcceptOpaque) then
           begin
             Check((R.StatusCode = 200) and (R.StatusText = '中文'), '客户端状态行 UTF8');
-            if Kind = 'valid' then
+            if (Kind = 'valid') or (Kind = 'query-values') then
               Check((R.Header['X-Text'] = '中文') and R.Header.Items[0].HasRawValue, '客户端字段 UTF8/raw')
             else begin
               Check(SameBytes(R.Header.Items[0].RawValue, TBytes.Create($FE)), '客户端保留非 UTF8 原值');
               Check((R.Content <> nil) and (R.Content.Size = 3), '高位值不破坏正文定界');
             end;
             Check(R.Cookies.Count = 2, '重复 Set-Cookie');
-          end
-          else if Kind = 'head-metadata' then
+          end else
+          if Kind = 'cookie-values' then
+          begin
+            Check((R.StatusCode = 200) and (R.StatusText = 'OK'), 'Cookie响应状态行');
+            Check(R.Cookies.Count = 3, '保留重复及空值Cookie，跳过非法项');
+            LCookie := R.Cookies.Items[0];
+            Check((LCookie.Name = 'a') and (LCookie.Value = '1'), '第一个Cookie名称和值');
+            Check((LCookie.Domain = '127.0.0.1') and (LCookie.Path = '/first'), '首项默认域及显式路径');
+            Check(LCookie.HttpOnly and not LCookie.Secure and (LCookie.MaxAge = 0), '首项HttpOnly属性');
+            LCookie := R.Cookies.Items[1];
+            Check((LCookie.Name = 'a') and (LCookie.Value = '2'), '同名Cookie按原字段顺序保留');
+            Check((LCookie.Domain = '127.0.0.1') and (LCookie.Path = '/'), '第二项默认域及路径');
+            Check((LCookie.MaxAge = 60) and LCookie.Secure and not LCookie.HttpOnly, '第二项Max-Age和Secure属性');
+            LCookie := R.Cookies.Items[2];
+            Check((LCookie.Name = 'empty') and (LCookie.Value = ''), '空Cookie值不丢失');
+            Check((LCookie.Domain = '127.0.0.1') and (LCookie.Path = '/'), '空值项默认域及路径');
+            Check((LCookie.MaxAge = 0) and not LCookie.HttpOnly and not LCookie.Secure, '空值项默认属性');
+            // Cookie解析跳过非法项，但完整Header仍保留原字段、值及重复次序。
+            Check(R.Header.GetHeaderValues('Set-Cookie', LCookieValues)
+              and (Length(LCookieValues) = 5), '原始Set-Cookie字段全部保留');
+            Check((LCookieValues[0] = 'a=1; Path=/first; HttpOnly')
+              and (LCookieValues[1] = 'a=2; Max-Age=60; Secure')
+              and (LCookieValues[2] = 'empty=')
+              and (LCookieValues[3] = 'bad name=value')
+              and (LCookieValues[4] = 'no-equals'), '原始Set-Cookie值及顺序');
+            Check(R.Header['X-Between'] = 'preserved', '普通字段不受Cookie收集影响');
+            Check(R.Header.Items[0].HasRawValue
+              and SameBytes(R.Header.Items[0].RawValue, Bytes('a=1; Path=/first; HttpOnly')),
+              'Set-Cookie保留原始字节');
+          end else
+          if Kind = 'head-metadata' then
             Check((R.StatusCode = 200) and (R.Header['Transfer-Encoding'] = 'custom; p="中文"')
               and ((R.Content = nil) or (R.Content.Size = 0)), 'HEAD 高位引号 TE 元数据')
           else if Kind = 'empty-response' then
@@ -715,6 +761,7 @@ end;
 {$I HeaderEncodeCases.inc}
 {$I ChunkedMetadataCases.inc}
 {$I ResponseCookieOutputCases.inc}
+{$I ResponseCookieEncodeCases.inc}
 {$I BodylessResponseCases.inc}
 {$I CompressionChoiceCases.inc}
 {$I RequestPathCases.inc}
@@ -726,6 +773,10 @@ end;
 {$I QueryEncodeCases.inc}
 {$I ParamMutationCases.inc}
 {$I ParamAssignCases.inc}
+{$I RouteMatchCases.inc}
+{$I RoutePathCases.inc}
+{$I LookupCases.inc}
+{$I HtmlEncodeCases.inc}
 
 var I: Integer;
 begin
@@ -743,6 +794,10 @@ begin
       Writeln('startline-case'); Inc(Checks, RunStartLineCaseTests);
       Writeln('header-names'); Inc(Checks, RunHeaderNameTests);
       Writeln('request-paths'); Inc(Checks, RunRequestPathTests);
+      Writeln('route-match'); Inc(Checks, RunRouteMatchTests);
+      Writeln('route-path'); Inc(Checks, RunRoutePathTests);
+      Writeln('lookups'); Inc(Checks, RunLookupTests);
+      Writeln('html-encode'); Inc(Checks, RunHtmlEncodeTests);
       Writeln('request-query'); Inc(Checks, RunRequestQueryTests);
       Inc(Checks, RunRequestCookieScanTests);
       Inc(Checks, RunRequestCookieEncodeTests);
@@ -753,6 +808,7 @@ begin
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');
       // Feed会直接累计全局断言；先取得局部计数，避免Inc求值顺序覆盖函数内部的增量。
+      Inc(Checks, RunResponseCookieEncodeTests);
       I := RunResponseCookieOutputTests;
       Inc(Checks, I);
       I := RunBodylessResponseTests;

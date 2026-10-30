@@ -7,7 +7,7 @@ uses
 type
   TRequestAccess = class(TCrossHttpRequest);
   TResponseAccess = class(TCrossHttpClientResponse);
-  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode);
+  TMode = (bmWire, bmString, bmRequest, bmNewRequest, bmResponse, bmEncode, bmServerEncode, bmEncodeLegacy, bmFieldEncode, bmQueryEncode);
   {$IFDEF FPC}
   TBenchManager = TMemoryManager;
   TBenchSize = PtrUInt;
@@ -70,7 +70,7 @@ var
   Data, HeaderData, ResponseData, ValidatedHeader: TBytes;
   HeaderText, FirstLine, Target, ExpectedPath, FieldText: string;
   Header, Expected: THttpHeader;
-  ExpectedQuery: THttpUrlParams;
+  ExpectedQuery, LDecodedQuery: THttpUrlParams;
   Request: TRequestAccess;
   Response: TResponseAccess;
   ServerResponse: TCrossHttpResponse;
@@ -221,6 +221,8 @@ var
         begin Encoded := EncodeLegacyHeader; Inc(Checksum, Length(Encoded)); end;
       bmFieldEncode: for J := 1 to Count do
         begin EncodedFields := Expected.Encode; Inc(Checksum, Length(EncodedFields)); end;
+      bmQueryEncode: for J := 1 to Count do
+        begin EncodedFields := ExpectedQuery.Encode; Inc(Checksum, Length(EncodedFields)); end;
       bmServerEncode: for J := 1 to Count do
         begin Encoded := HttpHeaderBenchCreate(ServerResponse, 165); Inc(Checksum, Length(Encoded)); end;
     end;
@@ -235,6 +237,7 @@ begin
   else if ParamStr(1) = 'server-encode' then Mode := bmServerEncode
   else if ParamStr(1) = 'encode-legacy' then Mode := bmEncodeLegacy
   else if ParamStr(1) = 'field-encode' then Mode := bmFieldEncode
+  else if ParamStr(1) = 'query-encode' then Mode := bmQueryEncode
   else raise Exception.Create('Unknown benchmark');
   N := StrToInt(ParamStr(3)); Check(N > 0, 'Invalid count');
   Allocations := ParamStr(4) = 'alloc';
@@ -289,6 +292,20 @@ begin
           FieldText := Expected.Encode;
           Valid := Header.Decode(FieldText) and SameParams(Header, Expected);
         end;
+      bmQueryEncode:
+        begin
+          // 参数解析、独立回读对象及语义比较均在计时/分配统计之外。
+          FieldText := ExpectedQuery.Encode;
+          LDecodedQuery := THttpUrlParams.Create;
+          try
+            Valid := LDecodedQuery.Decode(FieldText);
+            // 空query的Decode返回False，Encode仍须是空串且回读集合为空。
+            if ExpectedQuery.Count = 0 then Valid := (FieldText = '') and not Valid;
+            Valid := Valid and SameParams(LDecodedQuery, ExpectedQuery);
+          finally
+            LDecodedQuery.Free;
+          end;
+        end;
       bmServerEncode:
         begin
           Check(Request.ParseHeader(@EncodeRequest[1], Length(EncodeRequest)), 'ASCII encode seed request invalid');
@@ -328,13 +345,17 @@ begin
     else if Mode = bmWire then
       for I := 0 to Header.Count-1 do Inc(RawBytes, Length(Header.Items[I].RawValue));
     {$ENDIF}
-    Writeln('VALID fields=', Expected.Count, ' header_bytes=', Length(Data), ' entry_size=', EntrySize, ' raw_value_bytes=', RawBytes);
+    if Mode = bmQueryEncode then
+      Writeln('VALID query_fields=', ExpectedQuery.Count, ' input_bytes=', Length(Data), ' entry_size=', EntrySize)
+    else
+      Writeln('VALID fields=', Expected.Count, ' header_bytes=', Length(Data), ' entry_size=', EntrySize, ' raw_value_bytes=', RawBytes);
     // 纯语义验证不预热、不计时，便于在其它候选准备期间检查 fixture 与所有权。
     if ParamStr(4) = 'validate' then begin Writeln('VALID_ONLY'); Exit; end;
     UnitChecksum := Expected.Count;
     if Mode = bmEncode then UnitChecksum := Length(EncodeHeader)
     else if Mode = bmEncodeLegacy then UnitChecksum := Length(EncodeLegacyHeader)
     else if Mode = bmFieldEncode then UnitChecksum := Length(Expected.Encode)
+    else if Mode = bmQueryEncode then UnitChecksum := Length(ExpectedQuery.Encode)
     else if Mode = bmServerEncode then UnitChecksum := Length(HttpHeaderBenchCreate(ServerResponse, 165));
     // 只复用对象；TList.Clear 在两个 RTL 都释放容量，不能把它写成容量复用。
     Checksum := 0; Run(2000); // 同进程预热分支和页。

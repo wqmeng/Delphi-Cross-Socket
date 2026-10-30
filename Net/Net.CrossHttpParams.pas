@@ -1595,21 +1595,27 @@ begin
   Result := '';
   for I := 0 to FParams.Count - 1 do
   begin
-    if (I > 0) then
-      Result := Result + '&';
-
     if FEncodeName then
       LName := TCrossHttpUtils.UrlEncode(FParams[I].Name)
     else
       LName := FParams[I].Name;
-    Result := Result + LName;
 
     if FEncodeValue then
       LValue := TCrossHttpUtils.UrlEncode(FParams[I].Value)
     else
       LValue := FParams[I].Value;
-    if (LValue <> '') then
-      Result := Result + '=' + LValue;
+    // 名称和值准备好后只追加一次，避免依次追加分隔符、名称和值而重复复制前缀。
+    // 按编码后的值判断是否输出等号，保留空值、重复项和首项的原格式。
+    if I = 0 then
+    begin
+      if LValue <> '' then Result := LName + '=' + LValue else Result := LName;
+    end else
+    begin
+      if LValue <> '' then
+        Result := Result + '&' + LName + '=' + LValue
+      else
+        Result := Result + '&' + LName;
+    end;
   end;
 end;
 

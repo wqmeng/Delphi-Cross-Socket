@@ -721,6 +721,8 @@ end;
 {$I RequestQueryCases.inc}
 {$I RequestCookieScanCases.inc}
 {$I UrlDecodeCases.inc}
+{$I UrlEncodeCases.inc}
+{$I QueryEncodeCases.inc}
 {$I ParamMutationCases.inc}
 
 var I: Integer;
@@ -741,6 +743,8 @@ begin
       Writeln('request-query'); Inc(Checks, RunRequestQueryTests);
       Inc(Checks, RunRequestCookieScanTests);
       Writeln('url-decode'); Inc(Checks, RunUrlDecodeTests);
+      Writeln('url-encode'); Inc(Checks, RunUrlEncodeTests);
+      Writeln('query-encode'); Inc(Checks, RunQueryEncodeTests);
       {$IFDEF MSWINDOWS}Writeln('decode-guard'); TestDecodeGuard;{$ENDIF}
       Writeln('multipart-request'); for I := 0 to 3 do TestMultipartRequest(I);
       Writeln('server-output');

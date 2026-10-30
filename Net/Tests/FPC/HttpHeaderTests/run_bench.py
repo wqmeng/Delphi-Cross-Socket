@@ -38,6 +38,9 @@ EXTRA_CASES = [(mode, fixture) for mode in ('encode-legacy', 'field-encode')
                for fixture in ('small', 'ascii', 'many', 'cookie', 'original', 'unicode')]
 # URL解码专用输入只显式选择，不改变既有all对照范围。
 EXTRA_CASES += [('request', fixture) for fixture in ('url-escaped', 'url-unicode', 'url-long-tail')]
+# query编码只显式选择，使用相同fixture预建参数，默认all保持不变。
+EXTRA_CASES += [('query-encode', fixture) for fixture in ('small', 'url-escaped', 'url-unicode', 'url-long-tail')]
+EXTRA_CASES += [('query-encode', 'query-many')]
 AVAILABLE_CASES = CASES + EXTRA_CASES
 
 
@@ -110,6 +113,7 @@ def fixtures(root):
     values['many'] = small[:-2] + b''.join(f'X-Field-{i:02d}: '.encode() + b'a' * 32 + b'\r\n' for i in range(36)) + b'\r\n'
     values['cookie'] = small[:-2] + b'Cookie: session=' + b'a' * 8192 + b'\r\n\r\n'
     values['noquery'] = small.replace(b'/bench?a=1&b=2', b'/bench')
+    values['query-many'] = small.replace(b'/bench?a=1&b=2', b'/bench?' + b'&'.join(f'k{i:02d}=value-{i:02d}'.encode('ascii') for i in range(32)))
     values['unicode'] = small[:-2] + 'X-Text: 中文文件名😀\r\n\r\n'.encode('utf-8')
     values['url-escaped'] = small.replace(b'/bench?a=1&b=2', b'/a%2Fb%20c?key=a%26b&plus=x+y')
     values['url-unicode'] = small.replace(b'/bench?a=1&b=2', '/中文/文件?name=中文&other=值'.encode('utf-8'))

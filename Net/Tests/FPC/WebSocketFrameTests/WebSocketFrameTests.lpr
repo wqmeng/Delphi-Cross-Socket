@@ -3,9 +3,12 @@
 {$I zLib.inc}
 
 uses
+  {$IF DEFINED(FPC) AND DEFINED(POSIX)}cthreads,{$ENDIF}
   SysUtils
   ,Classes
   ,Net.CrossWebSocketParser
+  ,WebSocketRegressionTests
+  ,WebSocketSenderTests
   ;
 
 procedure Fail(const AMessage: string);
@@ -239,6 +242,8 @@ end;
 
 begin
   try
+    RunWebSocketRegressionTests;
+    RunWebSocketSenderTests;
     TestFreshMaskingKeys;
     TestClientFrameKinds;
     TestPayloadBoundaries;
@@ -248,7 +253,7 @@ begin
   except
     on E: Exception do
     begin
-      Writeln(StdErr, E.ClassName, ': ', E.Message);
+      Writeln({$IFDEF FPC}StdErr{$ELSE}ErrOutput{$ENDIF}, E.ClassName, ': ', E.Message);
       Halt(1);
     end;
   end;

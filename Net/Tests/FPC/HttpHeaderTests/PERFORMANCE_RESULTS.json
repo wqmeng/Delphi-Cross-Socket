@@ -1,0 +1,1808 @@
+{
+  "before": "566187c283ebb3105e57ac9c8dd148a952b014d1",
+  "after": "5e63745 + comment-only working changes",
+  "micro": [
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "small",
+      "count": 261288,
+      "summary_ns": {
+        "before": {
+          "median": 813.3282048926854,
+          "min": 800.4317075411041,
+          "max": 836.4697192370105
+        },
+        "after": {
+          "median": 1465.1392333363951,
+          "min": 1459.4202565751202,
+          "max": 1476.2736903340376
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 8266.4,
+          "ns_per_op": 826.64,
+          "calls_per_op": 10.0,
+          "allocated_bytes_per_op": 530.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 14770.5,
+          "ns_per_op": 1477.05,
+          "calls_per_op": 13.0,
+          "allocated_bytes_per_op": 511.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=32 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 80.14120554563983,
+      "paired_change_percent": {
+        "median": 79.52985442295504,
+        "min": 74.97253608285159,
+        "max": 83.48232216012761
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "ascii",
+      "count": 71811,
+      "summary_ns": {
+        "before": {
+          "median": 3437.5875562239767,
+          "min": 3428.722619097353,
+          "max": 3519.403712523151
+        },
+        "after": {
+          "median": 5375.645792427344,
+          "min": 5338.7364052860985,
+          "max": 5408.007129826907
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 35142.9,
+          "ns_per_op": 3514.29,
+          "calls_per_op": 24.0,
+          "allocated_bytes_per_op": 3342.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 53521.1,
+          "ns_per_op": 5352.11,
+          "calls_per_op": 33.0,
+          "allocated_bytes_per_op": 3066.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 56.37843995258785,
+      "paired_change_percent": {
+        "median": 55.78748957897015,
+        "min": 53.436823764629615,
+        "max": 57.30217832523152
+      },
+      "aa_change_percent": {
+        "median": -0.5131505493514266,
+        "min": -1.0402516679807627,
+        "max": 0.9934477989919532
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "many",
+      "count": 24769,
+      "summary_ns": {
+        "before": {
+          "median": 10267.596592514838,
+          "min": 10113.363478541725,
+          "max": 10500.185716015987
+        },
+        "after": {
+          "median": 17392.16762889095,
+          "min": 17277.596996245305,
+          "max": 17718.66849691146
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 104971.2,
+          "ns_per_op": 10497.12,
+          "calls_per_op": 86.0,
+          "allocated_bytes_per_op": 9698.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 175108.8,
+          "ns_per_op": 17510.88,
+          "calls_per_op": 125.0,
+          "allocated_bytes_per_op": 9567.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=32 raw_value_bytes=1185"
+        }
+      },
+      "time_change_percent": 69.3888873815902,
+      "paired_change_percent": {
+        "median": 69.8399639978209,
+        "min": 65.6367620466235,
+        "max": 74.77268272508475
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "cookie",
+      "count": 9865,
+      "summary_ns": {
+        "before": {
+          "median": 25963.983781044095,
+          "min": 25433.87734414597,
+          "max": 26378.702483527624
+        },
+        "after": {
+          "median": 27477.23264064876,
+          "min": 27366.001013684745,
+          "max": 27673.684744044604
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 266764.7,
+          "ns_per_op": 26676.47,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 50144.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 276689.6,
+          "ns_per_op": 27668.96,
+          "calls_per_op": 17.0,
+          "allocated_bytes_per_op": 25447.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=32 raw_value_bytes=8233"
+        }
+      },
+      "time_change_percent": 5.828261457740802,
+      "paired_change_percent": {
+        "median": 5.642812160944999,
+        "min": 4.164458649196723,
+        "max": 8.663908018892341
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "original",
+      "count": 46298,
+      "summary_ns": {
+        "after": {
+          "median": 5439.5049462179795,
+          "min": 5399.038835370859,
+          "max": 5480.778867337682
+        }
+      },
+      "allocations": {
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 56417.8,
+          "ns_per_op": 5641.78,
+          "calls_per_op": 33.0,
+          "allocated_bytes_per_op": 3073.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=32 raw_value_bytes=515"
+        }
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "string",
+      "fixture": "ascii",
+      "count": 84105,
+      "summary_ns": {
+        "before": {
+          "median": 2972.3250698531597,
+          "min": 2944.8498900184295,
+          "max": 3050.4738124962846
+        },
+        "after": {
+          "median": 4200.177159503002,
+          "min": 4151.837583972416,
+          "max": 4221.651507044766
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 29913.4,
+          "ns_per_op": 2991.34,
+          "calls_per_op": 23.0,
+          "allocated_bytes_per_op": 2016.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 42274.8,
+          "ns_per_op": 4227.48,
+          "calls_per_op": 23.0,
+          "allocated_bytes_per_op": 2400.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 41.3094819978927,
+      "paired_change_percent": {
+        "median": 41.38337944358299,
+        "min": 37.33713854960297,
+        "max": 42.12827413955458
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "request",
+      "fixture": "small",
+      "count": 59190,
+      "summary_ns": {
+        "before": {
+          "median": 3180.207805372529,
+          "min": 3165.582023990539,
+          "max": 3300.285521202906
+        },
+        "after": {
+          "median": 4227.856056766345,
+          "min": 4206.671735090387,
+          "max": 4269.7077208988
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 33139.2,
+          "ns_per_op": 3313.9199999999996,
+          "calls_per_op": 49.0,
+          "allocated_bytes_per_op": 1751.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 43169.4,
+          "ns_per_op": 4316.94,
+          "calls_per_op": 50.0,
+          "allocated_bytes_per_op": 1644.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=32 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 32.94276083543839,
+      "paired_change_percent": {
+        "median": 32.85027453838549,
+        "min": 28.917104654918834,
+        "max": 34.25876490478732
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "request",
+      "fixture": "ascii",
+      "count": 43300,
+      "summary_ns": {
+        "before": {
+          "median": 5729.3163972286375,
+          "min": 5701.143187066975,
+          "max": 5802.267898383372
+        },
+        "after": {
+          "median": 7586.879907621247,
+          "min": 7566.618937644342,
+          "max": 7718.766743648961
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 59382.1,
+          "ns_per_op": 5938.21,
+          "calls_per_op": 41.0,
+          "allocated_bytes_per_op": 5407.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 77133.6,
+          "ns_per_op": 7713.36,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 4498.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 32.42207938264927,
+      "paired_change_percent": {
+        "median": 32.55238957818067,
+        "min": 30.40795547810802,
+        "max": 35.38980675242396
+      },
+      "aa_change_percent": {
+        "median": -0.46990193944485004,
+        "min": -1.0251822435812352,
+        "max": 2.2157102347378332
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "request",
+      "fixture": "original",
+      "count": 32355,
+      "summary_ns": {
+        "after": {
+          "median": 7699.527121001391,
+          "min": 7669.4792149590485,
+          "max": 7855.469015608098
+        }
+      },
+      "allocations": {
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 78574.3,
+          "ns_per_op": 7857.43,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 4514.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=32 raw_value_bytes=515"
+        }
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "new-request",
+      "fixture": "ascii",
+      "count": 37653,
+      "summary_ns": {
+        "before": {
+          "median": 6665.285634610788,
+          "min": 6627.6206411175735,
+          "max": 6900.276206411176
+        },
+        "after": {
+          "median": 8633.051815260404,
+          "min": 8554.266592303402,
+          "max": 8758.741667330625
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 70076.8,
+          "ns_per_op": 7007.68,
+          "calls_per_op": 54.0,
+          "allocated_bytes_per_op": 6423.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 85621.0,
+          "ns_per_op": 8562.1,
+          "calls_per_op": 64.0,
+          "allocated_bytes_per_op": 5514.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 29.52260846004271,
+      "paired_change_percent": {
+        "median": 29.52260846004271,
+        "min": 23.969915644180627,
+        "max": 31.937478371669247
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "response",
+      "fixture": "ascii",
+      "count": 55956,
+      "summary_ns": {
+        "before": {
+          "median": 4556.576595896776,
+          "min": 4509.15540782043,
+          "max": 4660.879977124884
+        },
+        "after": {
+          "median": 6153.3883765816,
+          "min": 6136.160554721567,
+          "max": 6265.789191507613
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 47111.3,
+          "ns_per_op": 4711.13,
+          "calls_per_op": 30.0,
+          "allocated_bytes_per_op": 4862.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 62345.9,
+          "ns_per_op": 6234.59,
+          "calls_per_op": 36.0,
+          "allocated_bytes_per_op": 3154.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 35.04411145250499,
+      "paired_change_percent": {
+        "median": 35.40314775020856,
+        "min": 32.022030320063855,
+        "max": 37.430957905047954
+      }
+    },
+    {
+      "target": "win64",
+      "mode": "encode",
+      "fixture": "ascii",
+      "count": 175982,
+      "summary_ns": {
+        "before": {
+          "median": 1419.7650896114376,
+          "min": 1417.6779443352161,
+          "max": 1431.765180529827
+        },
+        "after": {
+          "median": 2554.118603038947,
+          "min": 2526.8493368639975,
+          "max": 2579.129683717653
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 14497.6,
+          "ns_per_op": 1449.76,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 11667.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 26881.7,
+          "ns_per_op": 2688.17,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 11667.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 79.89726763446201,
+      "paired_change_percent": {
+        "median": 80.156412767136,
+        "min": 77.93252155359734,
+        "max": 81.20706925730636
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "small",
+      "count": 325394,
+      "summary_ns": {
+        "before": {
+          "median": 734.4871140832345,
+          "min": 722.4736780641315,
+          "max": 749.8712330282673
+        },
+        "after": {
+          "median": 1178.8942021057549,
+          "min": 1167.6318555351359,
+          "max": 1191.9491447291591
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 7462.9,
+          "ns_per_op": 746.29,
+          "calls_per_op": 10.0,
+          "allocated_bytes_per_op": 454.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 11977.4,
+          "ns_per_op": 1197.74,
+          "calls_per_op": 13.0,
+          "allocated_bytes_per_op": 375.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 60.50577055762461,
+      "paired_change_percent": {
+        "median": 60.50577055762461,
+        "min": 57.69212092234477,
+        "max": 64.24671379216176
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "ascii",
+      "count": 70184,
+      "summary_ns": {
+        "before": {
+          "median": 3698.3586002507695,
+          "min": 3548.699133705688,
+          "max": 3793.3603100421747
+        },
+        "after": {
+          "median": 4365.301208252593,
+          "min": 4314.3408754132,
+          "max": 4439.330901630001
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 36608.7,
+          "ns_per_op": 3660.87,
+          "calls_per_op": 24.0,
+          "allocated_bytes_per_op": 3042.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 45220.4,
+          "ns_per_op": 4522.04,
+          "calls_per_op": 33.0,
+          "allocated_bytes_per_op": 2498.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 18.033475930554733,
+      "paired_change_percent": {
+        "median": 18.42397451742448,
+        "min": 13.734012136728268,
+        "max": 24.25042780000135
+      },
+      "aa_change_percent": {
+        "median": -0.2682869342673144,
+        "min": -3.196189482365419,
+        "max": 4.465998790102188
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "many",
+      "count": 23864,
+      "summary_ns": {
+        "before": {
+          "median": 10439.05464297687,
+          "min": 10176.18588669125,
+          "max": 10561.385350318471
+        },
+        "after": {
+          "median": 14050.79617834395,
+          "min": 13991.556319141804,
+          "max": 14175.79617834395
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 103788.8,
+          "ns_per_op": 10378.88,
+          "calls_per_op": 86.0,
+          "allocated_bytes_per_op": 8566.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 143778.1,
+          "ns_per_op": 14377.81,
+          "calls_per_op": 125.0,
+          "allocated_bytes_per_op": 7351.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=16 raw_value_bytes=1185"
+        }
+      },
+      "time_change_percent": 34.598358365687545,
+      "paired_change_percent": {
+        "median": 35.058895674170245,
+        "min": 32.98144041606608,
+        "max": 39.182151541418484
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "cookie",
+      "count": 10831,
+      "summary_ns": {
+        "before": {
+          "median": 32098.57815529499,
+          "min": 31300.997137845075,
+          "max": 33778.856984581296
+        },
+        "after": {
+          "median": 23328.215307912473,
+          "min": 23166.642045979133,
+          "max": 23544.714246145322
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 319731.1,
+          "ns_per_op": 31973.11,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 49984.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 234015.0,
+          "ns_per_op": 23401.5,
+          "calls_per_op": 17.0,
+          "allocated_bytes_per_op": 25159.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=16 raw_value_bytes=8233"
+        }
+      },
+      "time_change_percent": -27.323212900431095,
+      "paired_change_percent": {
+        "median": -27.293478417525407,
+        "min": -30.93841121219444,
+        "max": -25.987527030028524
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "original",
+      "count": 56694,
+      "summary_ns": {
+        "after": {
+          "median": 4404.870003880481,
+          "min": 4381.791723991957,
+          "max": 4981.56242283134
+        }
+      },
+      "allocations": {
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 43860.0,
+          "ns_per_op": 4386.0,
+          "calls_per_op": 33.0,
+          "allocated_bytes_per_op": 2505.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=16 raw_value_bytes=515"
+        }
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "string",
+      "fixture": "ascii",
+      "count": 101577,
+      "summary_ns": {
+        "before": {
+          "median": 2445.8528997706176,
+          "min": 2426.8820697598867,
+          "max": 2464.865077724288
+        },
+        "after": {
+          "median": 3416.924106835209,
+          "min": 3408.3217657540586,
+          "max": 3449.9630821938035
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 25070.5,
+          "ns_per_op": 2507.05,
+          "calls_per_op": 23.0,
+          "allocated_bytes_per_op": 1720.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 34538.7,
+          "ns_per_op": 3453.87,
+          "calls_per_op": 23.0,
+          "allocated_bytes_per_op": 1912.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 39.702764101457724,
+      "paired_change_percent": {
+        "median": 40.218009828019774,
+        "min": 38.4965507545524,
+        "max": 40.79481444161297
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "request",
+      "fixture": "small",
+      "count": 87160,
+      "summary_ns": {
+        "before": {
+          "median": 2921.5878843506193,
+          "min": 2896.6842588343275,
+          "max": 2938.418999541074
+        },
+        "after": {
+          "median": 3769.3058742542453,
+          "min": 3744.357503441946,
+          "max": 3830.2042221202387
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 29662.0,
+          "ns_per_op": 2966.2,
+          "calls_per_op": 49.0,
+          "allocated_bytes_per_op": 1411.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 37522.7,
+          "ns_per_op": 3752.27,
+          "calls_per_op": 50.0,
+          "allocated_bytes_per_op": 1216.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 29.01565941056905,
+      "paired_change_percent": {
+        "median": 29.121548454279633,
+        "min": 28.542922702434794,
+        "max": 32.00200707220122
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "request",
+      "fixture": "ascii",
+      "count": 45230,
+      "summary_ns": {
+        "before": {
+          "median": 5487.660844572187,
+          "min": 5426.803006853858,
+          "max": 5693.648021224851
+        },
+        "after": {
+          "median": 6243.289851868229,
+          "min": 6229.009506964404,
+          "max": 6308.1671456997565
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 54871.3,
+          "ns_per_op": 5487.13,
+          "calls_per_op": 41.0,
+          "allocated_bytes_per_op": 5003.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 64062.7,
+          "ns_per_op": 6406.27,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 3818.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 13.769601086835204,
+      "paired_change_percent": {
+        "median": 14.186677558415074,
+        "min": 10.638515989013818,
+        "max": 16.240945870575494
+      },
+      "aa_change_percent": {
+        "median": -0.2560195620104788,
+        "min": -4.588452308394819,
+        "max": 3.6765062145593497
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "request",
+      "fixture": "original",
+      "count": 39851,
+      "summary_ns": {
+        "after": {
+          "median": 6372.000702617249,
+          "min": 6293.2322902812975,
+          "max": 6415.71353291009
+        }
+      },
+      "allocations": {
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 64815.2,
+          "ns_per_op": 6481.52,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 3834.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=16 raw_value_bytes=515"
+        }
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "new-request",
+      "fixture": "ascii",
+      "count": 40471,
+      "summary_ns": {
+        "before": {
+          "median": 6155.7658570334315,
+          "min": 6140.745224975909,
+          "max": 6319.737589879172
+        },
+        "after": {
+          "median": 7134.8891799066,
+          "min": 7117.345753749599,
+          "max": 7276.743841269057
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 63391.8,
+          "ns_per_op": 6339.18,
+          "calls_per_op": 54.0,
+          "allocated_bytes_per_op": 5535.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 73584.6,
+          "ns_per_op": 7358.46,
+          "calls_per_op": 64.0,
+          "allocated_bytes_per_op": 4350.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 15.905792156705335,
+      "paired_change_percent": {
+        "median": 15.826297740993557,
+        "min": 15.143132729474317,
+        "max": 16.734034439850664
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "response",
+      "fixture": "ascii",
+      "count": 56259,
+      "summary_ns": {
+        "before": {
+          "median": 4472.464850068433,
+          "min": 4347.0093673901065,
+          "max": 4517.984678007075
+        },
+        "after": {
+          "median": 4994.948363817345,
+          "min": 4948.8081906894895,
+          "max": 5151.271796512558
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 45452.6,
+          "ns_per_op": 4545.26,
+          "calls_per_op": 30.0,
+          "allocated_bytes_per_op": 4526.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 52727.9,
+          "ns_per_op": 5272.79,
+          "calls_per_op": 36.0,
+          "allocated_bytes_per_op": 2562.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 11.682227390583444,
+      "paired_change_percent": {
+        "median": 11.842468176866694,
+        "min": 9.723016178077248,
+        "max": 15.490644088859739
+      }
+    },
+    {
+      "target": "win32",
+      "mode": "encode",
+      "fixture": "ascii",
+      "count": 187745,
+      "summary_ns": {
+        "before": {
+          "median": 1311.7856667288077,
+          "min": 1305.1756371674346,
+          "max": 1329.8639111560894
+        },
+        "after": {
+          "median": 2304.6414019015156,
+          "min": 2288.568537111508,
+          "max": 2326.7975179099312
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 13508.7,
+          "ns_per_op": 1350.87,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 11607.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=8 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 23337.9,
+          "ns_per_op": 2333.79,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 11607.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 75.68734438519873,
+      "paired_change_percent": {
+        "median": 75.22904712174538,
+        "min": 73.2990407941835,
+        "max": 77.56849656170535
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "wire",
+      "fixture": "small",
+      "count": 335121,
+      "summary_ns": {
+        "before": {
+          "median": 736.1230630130609,
+          "min": 731.2791499189844,
+          "max": 751.8057388226939
+        },
+        "after": {
+          "median": 3751.3032606133306,
+          "min": 3733.964001062303,
+          "max": 3785.9858827110206
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 7589.4,
+          "ns_per_op": 758.94,
+          "calls_per_op": 11.0,
+          "allocated_bytes_per_op": 610.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 37586.5,
+          "ns_per_op": 3758.65,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 655.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=32 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 409.6027348007125,
+      "paired_change_percent": {
+        "median": 409.46673431586163,
+        "min": 396.66606787407386,
+        "max": 417.0246127690493
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "wire",
+      "fixture": "ascii",
+      "count": 81957,
+      "summary_ns": {
+        "before": {
+          "median": 3008.0896079651525,
+          "min": 2985.2983149700453,
+          "max": 3079.599094647193
+        },
+        "after": {
+          "median": 10562.642605268617,
+          "min": 10534.265688104739,
+          "max": 10637.151957733933
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 30608.301,
+          "ns_per_op": 3060.8301,
+          "calls_per_op": 26.0,
+          "allocated_bytes_per_op": 3662.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 108457.398,
+          "ns_per_op": 10845.7398,
+          "calls_per_op": 35.0,
+          "allocated_bytes_per_op": 3674.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 251.14122190042752,
+      "paired_change_percent": {
+        "median": 251.54778367284027,
+        "min": 242.98758639162094,
+        "max": 255.07877027290812
+      },
+      "aa_change_percent": {
+        "median": -0.18455634311898006,
+        "min": -1.5136834242963637,
+        "max": 2.0265203001595067
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "wire",
+      "fixture": "many",
+      "count": 27568,
+      "summary_ns": {
+        "before": {
+          "median": 8853.48955310505,
+          "min": 8765.684525536853,
+          "max": 9034.651806442253
+        },
+        "after": {
+          "median": 36434.892810504934,
+          "min": 36320.84300638422,
+          "max": 37571.597975914105
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 93623.398,
+          "ns_per_op": 9362.3398,
+          "calls_per_op": 89.0,
+          "allocated_bytes_per_op": 10786.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 365502.594,
+          "ns_per_op": 36550.2594,
+          "calls_per_op": 128.0,
+          "allocated_bytes_per_op": 11695.0,
+          "checksum": 400000,
+          "shape": "fields=40 header_bytes=1766 entry_size=32 raw_value_bytes=1185"
+        }
+      },
+      "time_change_percent": 311.531437315885,
+      "paired_change_percent": {
+        "median": 310.34730103210177,
+        "min": 304.4657868971557,
+        "max": 324.37050103862373
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "wire",
+      "fixture": "cookie",
+      "count": 12447,
+      "summary_ns": {
+        "before": {
+          "median": 20408.820920703783,
+          "min": 20179.256286655418,
+          "max": 20906.578934683057
+        },
+        "after": {
+          "median": 33422.511448541816,
+          "min": 33102.61757853298,
+          "max": 33530.32859323532
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 203104.594,
+          "ns_per_op": 20310.4594,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 33606.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 332128.5,
+          "ns_per_op": 33212.85,
+          "calls_per_op": 18.0,
+          "allocated_bytes_per_op": 25559.0,
+          "checksum": 50000,
+          "shape": "fields=5 header_bytes=8320 entry_size=32 raw_value_bytes=8233"
+        }
+      },
+      "time_change_percent": 63.7650287510547,
+      "paired_change_percent": {
+        "median": 64.21120979100738,
+        "min": 58.335888822141335,
+        "max": 65.89584588065046
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "wire",
+      "fixture": "original",
+      "count": 81711,
+      "summary_ns": {
+        "before": {
+          "median": 3027.2557428008467,
+          "min": 2977.1131304230767,
+          "max": 3108.9009558076636
+        },
+        "after": {
+          "median": 10683.544749176977,
+          "min": 10596.087895142637,
+          "max": 10920.306017549658
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 30941.902,
+          "ns_per_op": 3094.1902,
+          "calls_per_op": 26.0,
+          "allocated_bytes_per_op": 3658.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 108288.297,
+          "ns_per_op": 10828.8297,
+          "calls_per_op": 35.0,
+          "allocated_bytes_per_op": 3681.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=32 raw_value_bytes=515"
+        }
+      },
+      "time_change_percent": 252.91186661660956,
+      "paired_change_percent": {
+        "median": 252.21160952353245,
+        "min": 243.84690411074607,
+        "max": 256.397296647211
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "string",
+      "fixture": "ascii",
+      "count": 50019,
+      "summary_ns": {
+        "before": {
+          "median": 2795.6895179831663,
+          "min": 2758.039764889342,
+          "max": 2930.1965253203784
+        },
+        "after": {
+          "median": 4128.269377636499,
+          "min": 4084.6297207061316,
+          "max": 4257.12417281433
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 28328.801,
+          "ns_per_op": 2832.8801,
+          "calls_per_op": 25.0,
+          "allocated_bytes_per_op": 2336.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 43003.801,
+          "ns_per_op": 4300.3801,
+          "calls_per_op": 25.0,
+          "allocated_bytes_per_op": 3008.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 47.66551689955423,
+      "paired_change_percent": {
+        "median": 47.66551689955423,
+        "min": 41.988596907184814,
+        "max": 53.956849876950685
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "request",
+      "fixture": "small",
+      "count": 27919,
+      "summary_ns": {
+        "before": {
+          "median": 8985.046599090225,
+          "min": 8868.852752605751,
+          "max": 9086.815895984813
+        },
+        "after": {
+          "median": 13584.855976216913,
+          "min": 13526.702245782442,
+          "max": 13676.854256957628
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 91373.5,
+          "ns_per_op": 9137.35,
+          "calls_per_op": 69.0,
+          "allocated_bytes_per_op": 2284.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 138180.297,
+          "ns_per_op": 13818.0297,
+          "calls_per_op": 69.0,
+          "allocated_bytes_per_op": 2253.0,
+          "checksum": 40000,
+          "shape": "fields=4 header_bytes=110 entry_size=32 raw_value_bytes=33"
+        }
+      },
+      "time_change_percent": 51.194051431991895,
+      "paired_change_percent": {
+        "median": 50.87470410420718,
+        "min": 49.918116427802396,
+        "max": 54.21221479789751
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "request",
+      "fixture": "ascii",
+      "count": 14887,
+      "summary_ns": {
+        "before": {
+          "median": 16817.216766306174,
+          "min": 16746.940484986902,
+          "max": 16959.562033989387
+        },
+        "after": {
+          "median": 27339.4173439914,
+          "min": 27161.0066500974,
+          "max": 27889.65412776248
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 169853.891,
+          "ns_per_op": 16985.3891,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 6024.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 282172.406,
+          "ns_per_op": 28217.2406,
+          "calls_per_op": 61.0,
+          "allocated_bytes_per_op": 5403.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 62.56802611218515,
+      "paired_change_percent": {
+        "median": 62.91307442322724,
+        "min": 60.235041211674734,
+        "max": 66.18080116156177
+      },
+      "aa_change_percent": {
+        "median": 0.03443170560586406,
+        "min": -2.4454873021265144,
+        "max": 1.5269783713151908
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "request",
+      "fixture": "original",
+      "count": 14788,
+      "summary_ns": {
+        "before": {
+          "median": 16977.535637002977,
+          "min": 16829.19319718691,
+          "max": 17399.093657019206
+        },
+        "after": {
+          "median": 27334.561806870435,
+          "min": 27248.66236137409,
+          "max": 27581.728022721127
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 169061.594,
+          "ns_per_op": 16906.1594,
+          "calls_per_op": 51.0,
+          "allocated_bytes_per_op": 6018.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 275953.094,
+          "ns_per_op": 27595.3094,
+          "calls_per_op": 61.0,
+          "allocated_bytes_per_op": 5419.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=700 entry_size=32 raw_value_bytes=515"
+        }
+      },
+      "time_change_percent": 61.00429644979837,
+      "paired_change_percent": {
+        "median": 61.84608805635694,
+        "min": 56.609665414274815,
+        "max": 63.88215107021951
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "new-request",
+      "fixture": "ascii",
+      "count": 13902,
+      "summary_ns": {
+        "before": {
+          "median": 17782.455977557187,
+          "min": 17723.076032225577,
+          "max": 18016.902891670263
+        },
+        "after": {
+          "median": 28232.66436483959,
+          "min": 27899.452452884478,
+          "max": 28624.69428859157
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 176163.094,
+          "ns_per_op": 17616.3094,
+          "calls_per_op": 64.0,
+          "allocated_bytes_per_op": 6944.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 281813.125,
+          "ns_per_op": 28181.3125,
+          "calls_per_op": 74.0,
+          "allocated_bytes_per_op": 6323.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=506"
+        }
+      },
+      "time_change_percent": 58.766957727725355,
+      "paired_change_percent": {
+        "median": 58.60805931572395,
+        "min": 57.27312702081158,
+        "max": 60.18364479661853
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "response",
+      "fixture": "ascii",
+      "count": 32080,
+      "summary_ns": {
+        "before": {
+          "median": 7754.532605985038,
+          "min": 7664.738559850374,
+          "max": 7924.906483790523
+        },
+        "after": {
+          "median": 16013.319233167082,
+          "min": 15973.540773067332,
+          "max": 16243.429519950125
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 78849.297,
+          "ns_per_op": 7884.9297,
+          "calls_per_op": 34.0,
+          "allocated_bytes_per_op": 5222.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 160045.703,
+          "ns_per_op": 16004.5703,
+          "calls_per_op": 39.0,
+          "allocated_bytes_per_op": 3782.0,
+          "checksum": 100000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 106.50270037948926,
+      "paired_change_percent": {
+        "median": 106.7266202747859,
+        "min": 101.56125256164673,
+        "max": 111.1988917347246
+      }
+    },
+    {
+      "target": "fpc64",
+      "mode": "encode",
+      "fixture": "ascii",
+      "count": 117953,
+      "summary_ns": {
+        "before": {
+          "median": 2144.0914262460474,
+          "min": 2132.0577602943545,
+          "max": 2227.8492280823716
+        },
+        "after": {
+          "median": 4475.908836570498,
+          "min": 4447.8584690512325,
+          "max": 4551.748899985588
+        }
+      },
+      "allocations": {
+        "before": {
+          "valid": true,
+          "n": 10000,
+          "us": 23707.102,
+          "ns_per_op": 2370.7102,
+          "calls_per_op": 15.0,
+          "allocated_bytes_per_op": 12991.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=16 raw_value_bytes=0"
+        },
+        "after": {
+          "valid": true,
+          "n": 10000,
+          "us": 45155.199,
+          "ns_per_op": 4515.5199,
+          "calls_per_op": 14.0,
+          "allocated_bytes_per_op": 12303.0,
+          "checksum": 6710000,
+          "shape": "fields=10 header_bytes=691 entry_size=32 raw_value_bytes=0"
+        }
+      },
+      "time_change_percent": 108.75550276356832,
+      "paired_change_percent": {
+        "median": 108.50726402415543,
+        "min": 101.48552618810682,
+        "max": 112.39135188071789
+      }
+    }
+  ],
+  "http": {
+    "rtl": {
+      "bomb_rps": {
+        "before": {
+          "median": 26270.799414118123,
+          "min": 25236.764604582,
+          "max": 26816.476908302655
+        },
+        "after": {
+          "median": 24235.915301786183,
+          "min": 23188.151729738256,
+          "max": 25771.637507175878
+        },
+        "change_percent": -7.745802022447701
+      },
+      "ab_rps": {
+        "before": {
+          "median": 27689.51,
+          "min": 24054.72,
+          "max": 29152.55
+        },
+        "after": {
+          "median": 26067.12,
+          "min": 22192.79,
+          "max": 26206.27
+        },
+        "change_percent": -5.859222499784211
+      },
+      "bomb_p99_us": {
+        "before": {
+          "median": 46873,
+          "min": 45912,
+          "max": 55658
+        },
+        "after": {
+          "median": 55660,
+          "min": 46873,
+          "max": 56637
+        },
+        "change_percent": 18.746399846393437
+      },
+      "bomb_server_cpu_us_per_response": {
+        "before": {
+          "median": 57.66822254066115,
+          "min": 53.06827745957501,
+          "max": 61.59317043052884
+        },
+        "after": {
+          "median": 55.649918145804605,
+          "min": 55.2334299710087,
+          "max": 61.227543620924266
+        },
+        "change_percent": -3.499855389913331
+      },
+      "aa_paired_rps_change_percent": {
+        "median": -6.368580268118973,
+        "min": -7.2077652159182275,
+        "max": 1.2599516214914175
+      },
+      "ab_paired_rps_change_percent": {
+        "median": -5.8521541006490985,
+        "min": -8.77244909599505,
+        "max": -3.8962590227625493
+      }
+    },
+    "fastmm5": {
+      "bomb_rps": {
+        "before": {
+          "median": 98754.7571396044,
+          "min": 96685.70604695452,
+          "max": 99580.62354659464
+        },
+        "after": {
+          "median": 97216.06269514952,
+          "min": 96622.26003516364,
+          "max": 98100.53114518533
+        },
+        "change_percent": -1.558096530255959
+      },
+      "ab_rps": {
+        "before": {
+          "median": 40577.99,
+          "min": 40163.93,
+          "max": 41446.98
+        },
+        "after": {
+          "median": 40608.08,
+          "min": 40153.29,
+          "max": 41178.99
+        },
+        "change_percent": 0.07415350045678615
+      },
+      "bomb_p99_us": {
+        "before": {
+          "median": 1957,
+          "min": 1954,
+          "max": 2043
+        },
+        "after": {
+          "median": 1959,
+          "min": 1954,
+          "max": 2044
+        },
+        "change_percent": 0.10219724067450642
+      },
+      "bomb_server_cpu_us_per_response": {
+        "before": {
+          "median": 114.0450916747083,
+          "min": 110.34196720521246,
+          "max": 120.56344254375793
+        },
+        "after": {
+          "median": 116.79241762980588,
+          "min": 115.54757121516509,
+          "max": 122.81119846651929
+        },
+        "change_percent": 2.408982197089027
+      },
+      "aa_paired_rps_change_percent": {
+        "median": -0.06639940170140024,
+        "min": -0.35972328562481337,
+        "max": 0.04874161647405728
+      },
+      "ab_paired_rps_change_percent": {
+        "median": -0.706249494450939,
+        "min": -2.3745190251180937,
+        "max": 0.45360323536174363
+      }
+    }
+  },
+  "memory": [
+    {
+      "target": "win64",
+      "kind": "header",
+      "before": 2111.995,
+      "after": 3360.0,
+      "change_percent": 59.091285727475686
+    },
+    {
+      "target": "win64",
+      "kind": "request",
+      "before": 4984.0,
+      "after": 5536.0,
+      "change_percent": 11.07544141252006
+    },
+    {
+      "target": "win32",
+      "kind": "header",
+      "before": 1775.998,
+      "after": 2695.998,
+      "change_percent": 51.801860137229895
+    },
+    {
+      "target": "win32",
+      "kind": "request",
+      "before": 4148.0,
+      "after": 4360.0,
+      "change_percent": 5.110896817743482
+    },
+    {
+      "target": "fpc64",
+      "kind": "header",
+      "before": 2240.0,
+      "after": 3216.0,
+      "change_percent": 43.57142857142857
+    },
+    {
+      "target": "fpc64",
+      "kind": "request",
+      "before": 5040.0,
+      "after": 5408.0,
+      "change_percent": 7.301587301587298
+    }
+  ],
+  "invalid_baselines": [
+    {
+      "target": "win64",
+      "mode": "wire",
+      "fixture": "original"
+    },
+    {
+      "target": "win64",
+      "mode": "request",
+      "fixture": "original"
+    },
+    {
+      "target": "win32",
+      "mode": "wire",
+      "fixture": "original"
+    },
+    {
+      "target": "win32",
+      "mode": "request",
+      "fixture": "original"
+    }
+  ],
+  "http_success_requests_including_aa": 19805358,
+  "http_errors": 0,
+  "ab_measured_requests_including_aa": 3200000,
+  "os_acp": 936
+}

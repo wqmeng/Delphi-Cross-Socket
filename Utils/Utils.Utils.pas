@@ -71,6 +71,11 @@ type
     FSysPath: string;
   private
     class constructor Create;
+    class function _IsUTF8(const ABuf: Pointer; const ABufSize: Integer;
+      out ACharCount: Integer): Boolean; static;
+    class function _GetBufEncoding(const ABuf: Pointer; const ABufSize: Integer;
+      var AEncoding: TEncoding; const ADefaultEncoding: TEncoding;
+      out ACharCount: Integer): Integer; static;
   public
     class function CalcTickDiff(AStartTick, AEndTick: Cardinal): Cardinal;
     class function TestTime(AProc: TProc): TTimeSpan;
@@ -179,6 +184,9 @@ type
   end;
 
   TEncodingHelper = class helper for TEncoding
+  private
+    function _GetString(const ABytes: PByte; AByteCount, ACharCount: Integer): string; inline;
+  public
     /// <summary>
     ///   从内存块中直接解码出字符串, 省去先将内存块转换为TBytes, 从而提高效率
     /// </summary>
@@ -254,43 +262,80 @@ end;
 
 class function TUtils.GetBufEncoding(const ABuf: Pointer; const ABufSize: Integer;
   var AEncoding: TEncoding; const ADefaultEncoding: TEncoding): Integer;
+var
+  LCharCount: Integer;
+begin
+  Result := _GetBufEncoding(ABuf, ABufSize, AEncoding, ADefaultEncoding, LCharCount);
+end;
 
-  function ContainsPreamble(const APreamble: TBytes; out APreambleSize: Integer): Boolean;
-  begin
-    APreambleSize := 0;
-    if (Length(APreamble) <= 0)
-      or (ABufSize < Length(APreamble)) then Exit(False);
-
-    Result := CompareMem(ABuf, @APreamble[0], Length(APreamble));
-
-    if Result then
-      APreambleSize := Length(APreamble);
-  end;
-
+class function TUtils._GetBufEncoding(const ABuf: Pointer; const ABufSize: Integer;
+  var AEncoding: TEncoding; const ADefaultEncoding: TEncoding;
+  out ACharCount: Integer): Integer;
+var
+  P: PByte;
+  LPreamble: TBytes;
 begin
   Result := 0;
+  ACharCount := -1;
+  P := ABuf;
 
   if (AEncoding = nil) then
   begin
-    if ContainsPreamble(TEncoding.UTF8.GetPreamble, Result) then
-      AEncoding := TEncoding.UTF8
-    else if ContainsPreamble(TEncoding.Unicode.GetPreamble, Result) then
-      AEncoding := TEncoding.Unicode
-    else if ContainsPreamble(TEncoding.BigEndianUnicode.GetPreamble, Result) then
-      AEncoding := TEncoding.BigEndianUnicode
-    else if IsUTF8(ABuf, ABufSize) then
-      AEncoding := TEncoding.UTF8
-    else
+    // 标准 BOM 直接检查字节，避免每次构造三个临时 TBytes。
+    if (ABufSize >= 3) then
+      if (P[0] = $EF) and (P[1] = $BB) and (P[2] = $BF) then
+      begin
+        AEncoding := TEncoding.UTF8;
+        Exit(3);
+      end;
+    if (ABufSize >= 2) then
     begin
-      if (ADefaultEncoding <> nil) then
-        AEncoding := ADefaultEncoding
-      else
-        AEncoding := TEncoding.Default;
-      ContainsPreamble(AEncoding.GetPreamble, Result);
+      if (P[0] = $FF) and (P[1] = $FE) then
+      begin
+        AEncoding := TEncoding.Unicode;
+        Exit(2);
+      end;
+      if (P[0] = $FE) and (P[1] = $FF) then
+      begin
+        AEncoding := TEncoding.BigEndianUnicode;
+        Exit(2);
+      end;
     end;
+    if _IsUTF8(ABuf, ABufSize, ACharCount) then
+    begin
+      AEncoding := TEncoding.UTF8;
+      Exit;
+    end;
+    if (ADefaultEncoding <> nil) then
+      AEncoding := ADefaultEncoding
+    else
+      AEncoding := TEncoding.Default;
+  end;
+
+  // 仅标准单例走快路；独立实例可能关闭 BOM 或覆盖 GetPreamble。
+  if (AEncoding = TEncoding.UTF8) then
+  begin
+    if (ABufSize >= 3) then
+      if (P[0] = $EF) and (P[1] = $BB) and (P[2] = $BF) then
+        Result := 3;
+  end else
+  if (AEncoding = TEncoding.Unicode) then
+  begin
+    if (ABufSize >= 2) then
+      if (P[0] = $FF) and (P[1] = $FE) then
+        Result := 2;
+  end else
+  if (AEncoding = TEncoding.BigEndianUnicode) then
+  begin
+    if (ABufSize >= 2) then
+      if (P[0] = $FE) and (P[1] = $FF) then
+        Result := 2;
   end else
   begin
-    ContainsPreamble(AEncoding.GetPreamble, Result);
+    LPreamble := AEncoding.GetPreamble;
+    if (Length(LPreamble) > 0) and (ABufSize >= Length(LPreamble)) then
+      if CompareMem(ABuf, Pointer(LPreamble), Length(LPreamble)) then
+        Result := Length(LPreamble);
   end;
 end;
 
@@ -331,11 +376,19 @@ class function TUtils.GetString(const AStrBuf: PByte; ABufSize: Integer;
 var
   LEncoding: TEncoding;
   LBomLen: Integer;
+  LCharCount: Integer;
 begin
   if (AStrBuf = nil) or (ABufSize <= 0) then Exit('');
 
   LEncoding := AEncoding;
-  LBomLen := TUtils.GetBufEncoding(AStrBuf, ABufSize, LEncoding, TEncoding.Default);
+  LBomLen := _GetBufEncoding(AStrBuf, ABufSize, LEncoding, nil, LCharCount);
+
+  if (LCharCount >= 0) then
+  begin
+    // 探测已得到正常 UTF-8 的准确 UTF-16 长度，直接写入结果。
+    Result := LEncoding._GetString(AStrBuf, ABufSize, LCharCount);
+    Exit;
+  end;
 
   Result := LEncoding.GetString(AStrBuf + LBomLen, ABufSize - LBomLen);
 end;
@@ -565,55 +618,115 @@ begin
 end;
 
 class function TUtils.IsUTF8(const ABuf: Pointer; const ABufSize: Integer): Boolean;
+var
+  LCharCount: Integer;
+begin
+  Result := _IsUTF8(ABuf, ABufSize, LCharCount);
+end;
 
+class function TUtils._IsUTF8(const ABuf: Pointer; const ABufSize: Integer;
+  out ACharCount: Integer): Boolean;
+type
+  TAsciiBlock = packed record
+    Value: NativeUInt;
+  end;
+  PAsciiBlock = ^TAsciiBlock;
+
+var
+  P, PEnd: PByte;
+  LUTF8Size: ShortInt;
+  LExactCount: Boolean;
+const
+  {$IFDEF CPU64BITS}
+  ASCII_HIGH_BITS = NativeUInt($8080808080808080);
+  {$ELSE}
+  ASCII_HIGH_BITS = NativeUInt($80808080);
+  {$ENDIF}
   function _IsUTF8(const P, PEnd: PByte; out AUTF8Size: ShortInt): Boolean;
   var
     I: ShortInt;
   begin
     Result := False;
-
-    // UTF8最多6个字节
-    // 第一个字节高位有多少个1就表示这个字符要占用几个字节
-
-    if (P^ and $FE) = $FC then      // 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 6
-    else if (P^ and $FC) = $F8 then // 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 5
-    else if (P^ and $F8) = $F0 then // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 4
-    else if (P^ and $F0) = $E0 then // 1110xxxx 10xxxxxx 10xxxxxx
-      AUTF8Size := 3
-    else if (P^ and $E0) = $C0 then // 110xxxxx 10xxxxxx
-      AUTF8Size := 2
+    // 续字节和特殊范围在同一分支检查；旧式序列仍按原规则接受，禁用长度复用。
+    case P^ of
+      $C0..$DF:
+        begin
+          AUTF8Size := 2;
+          if (PEnd - P < 2) then Exit;
+          if (P[1] and $C0 <> $80) then Exit;
+          if (P[0] < $C2) then LExactCount := False;
+        end;
+      $E0..$EF:
+        begin
+          AUTF8Size := 3;
+          if (PEnd - P < 3) then Exit;
+          if (P[1] and $C0 <> $80) or (P[2] and $C0 <> $80) then Exit;
+          if ((P[0] = $E0) and (P[1] < $A0)) or
+            ((P[0] = $ED) and (P[1] >= $A0)) then
+            LExactCount := False;
+        end;
+      $F0..$F7:
+        begin
+          AUTF8Size := 4;
+          if (PEnd - P < 4) then Exit;
+          if (P[1] and $C0 <> $80) or (P[2] and $C0 <> $80) or
+            (P[3] and $C0 <> $80) then Exit;
+          if (P[0] > $F4) or ((P[0] = $F0) and (P[1] < $90)) or
+            ((P[0] = $F4) and (P[1] >= $90)) then
+            LExactCount := False;
+        end;
+      $F8..$FD:
+        begin
+          if (P[0] < $FC) then AUTF8Size := 5 else AUTF8Size := 6;
+          if (PEnd - P < AUTF8Size) then Exit;
+          for I := 1 to AUTF8Size - 1 do
+            if (P[I] and $C0 <> $80) then Exit;
+          LExactCount := False;
+        end;
     else
       Exit;
-
-    if (P + AUTF8Size > PEnd) then Exit;
-
-    for I := 1 to AUTF8Size - 1 do
-      if (P[I] and $C0 <> $80) then Exit;
-
+    end;
     Result := True;
   end;
 
-var
-  P, PEnd: PByte;
-  LUTF8Size: ShortInt;
 begin
   P := ABuf;
   PEnd := P + ABufSize;
+  ACharCount := ABufSize;
+  LExactCount := True;
 
   while (P < PEnd) do
   begin
     // $00 - $7F
     if P^ and $80 = 0 then
-      Inc(P)
-    else if _IsUTF8(P, PEnd, LUTF8Size) then
-      Inc(P, LUTF8Size)
-    else
-      Exit(False);
+    begin
+      // packed 记录允许非对齐输入；先检查剩余长度，不读取缓冲区之外。
+      while (PEnd - P >= SizeOf(TAsciiBlock)) do
+      begin
+        if (PAsciiBlock(P)^.Value and ASCII_HIGH_BITS <> 0) then Break;
+        Inc(P, SizeOf(TAsciiBlock));
+      end;
+      while (P < PEnd) do
+      begin
+        if (P^ and $80 <> 0) then Break;
+        Inc(P);
+      end;
+    end else
+    begin
+      if not _IsUTF8(P, PEnd, LUTF8Size) then
+      begin
+        ACharCount := -1;
+        Exit(False);
+      end;
+      case LUTF8Size of
+        2: Dec(ACharCount);
+        3, 4: Dec(ACharCount, 2);
+      end;
+      Inc(P, LUTF8Size);
+    end;
   end;
 
+  if not LExactCount then ACharCount := -1;
   Result := True;
 end;
 
@@ -1166,8 +1279,22 @@ begin
   LSize := GetCharCount(ABytes, AByteCount);
   if (AByteCount > 0) and (LSize = 0) then
     raise EEncodingError.CreateRes(@SNoMappingForUnicodeCharacter);
-  SetLength(Result, LSize);
-  GetChars(ABytes, AByteCount, PChar(Result), LSize);
+  Result := _GetString(ABytes, AByteCount, LSize);
+end;
+
+function TEncodingHelper._GetString(const ABytes: PByte;
+  AByteCount, ACharCount: Integer): string;
+begin
+  SetLength(Result, ACharCount);
+  {$IFDEF FPC}
+  // FPC 的 UTF8.GetChars 会再次计数并经临时字符串复制；标准单例直接写入结果。
+  if (Self = TEncoding.UTF8) then
+  begin
+    if (ACharCount > 0) then
+      Utf8ToUnicode(PChar(Result), SizeUInt(ACharCount) + 1, PAnsiChar(ABytes), AByteCount, True);
+  end else
+  {$ENDIF}
+    GetChars(ABytes, AByteCount, PChar(Result), ACharCount);
 end;
 
 end.

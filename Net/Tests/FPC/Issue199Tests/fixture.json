@@ -1,0 +1,10 @@
+{
+  "issue": "https://github.com/winddriver/Delphi-Cross-Socket/issues/199",
+  "comment": "https://github.com/winddriver/Delphi-Cross-Socket/issues/199#issuecomment-6392797357",
+  "bytes": 865,
+  "header_bytes": 700,
+  "body_bytes": 165,
+  "sha256": "f4f7aaf808353472586a1eb8040d9b89c9d09fced27959d34b9e3886fee68e33",
+  "referer_encoding": "UTF-8 in published hex dump; later comment calls it GBK",
+  "extraction": "Reassembled TCP Segments hex block, contiguous offsets 0000..0360; HTTP bytes only; retransmission not duplicated"
+}

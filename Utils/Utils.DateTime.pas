@@ -20,7 +20,9 @@ uses
   SysUtils,
   DateUtils,
   Types,
-  Math;
+  Math,
+
+  Utils.StrUtils;
 
 const
   ShortDayNamesEnglish :array[1..7] of string =
@@ -69,6 +71,7 @@ type
     class function Create(const AFileTime: TFileTime): TDateTime; overload; static; inline;
     {$ENDIF}
 
+    // 仅接受完整日期时间字符串；格式不匹配返回 False，ADateTime 为 0。
     class function TryStrToDateTime(const AStr: string;
       out ADateTime: TDateTime; const AConvertToLocal: Boolean = True): Boolean; static;
 
@@ -574,7 +577,7 @@ begin
   // 2015-02-01T16:08:19.202Z
   DecodeDate(Self, LYear, LMonth, LDay);
   DecodeTime(Self, LHour, LMinute, LSecond, LMilliseconds);
-  Result := Format('%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%d', [LYear, LMonth, LDay, LHour, LMinute, LSecond, LMilliseconds]);
+  Result := TStrUtils.Format('%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%d', [LYear, LMonth, LDay, LHour, LMinute, LSecond, LMilliseconds]);
 
   if not AIsUtcDateTime and (Self <> 0) then
     LOffset := Self - Self.ToUniversalTime
@@ -584,7 +587,7 @@ begin
   if (LOffset <> 0) then
   begin
     DecodeTime(LOffset, LHour, LMinute, LSecond, LMilliseconds);
-    Result := Format('%s%s%.2d:%.2d', [Result, NEG[LOffset > 0], LHour, LMinute]);
+    Result := TStrUtils.Format('%s%s%.2d:%.2d', [Result, NEG[LOffset > 0], LHour, LMinute]);
   end else
     Result := Result + 'Z';
 end;
@@ -636,7 +639,7 @@ begin
   LDayOfWeek := DayOfTheWeek(LDateTime);
 
   // Fri, 30 Jul 2024 10:10:35 GMT
-  Result := Format('%s, %.2d %s %.4d %.2d:%.2d:%.2d GMT', [
+  Result := TStrUtils.Format('%s, %.2d %s %.4d %.2d:%.2d:%.2d GMT', [
     RFC1123_StrWeekDay[LDayOfWeek],
     LDay,
     RFC1123_StrMonth[LMonth],
@@ -649,7 +652,7 @@ begin
   if (AFormatStr = '') then
     Result := DateToStr(Self)
   else
-    Result := FormatDateTime(AFormatStr, Self);
+    Result := TStrUtils.FormatDateTime(AFormatStr, Self);
 end;
 
 function TDateTimeHelper.ToTimeStamp: TTimeStamp;
@@ -673,29 +676,31 @@ end;
 
 class function TDateTimeHelper.TryStrToDateTime(const AStr: string;
   out ADateTime: TDateTime; const AConvertToLocal: Boolean): Boolean;
-
-  function ParseDateTimePart(P: PChar; var AValue: Integer; MaxLen: Integer): PChar;
-  var
-    V: Integer;
-  begin
-    Result := P;
-    V := 0;
-    while CharInSet(Result^, ['0'..'9']) and (MaxLen > 0) do
-    begin
-      V := V * 10 + (Ord(Result^) - Ord('0'));
-      Inc(Result);
-      Dec(MaxLen);
-    end;
-    AValue := V;
-  end;
-
 var
   P, PEnd: PChar;
   LMSecsSince1970: Int64;
   LYear, LMonth, LDay, LHour, LMin, LSec, LMSec: Integer;
   LOffsetHour, LOffsetMin: Integer;
   LSign: Double;
-  LTime: TDateTime;
+  LTime, LDateTime: TDateTime;
+
+  function ParseDateTimePart(var P: PChar; var AValue: Integer;
+    AMaxLen: Integer): Boolean;
+  var
+    LStart: PChar;
+  begin
+    LStart := P;
+    AValue := 0;
+    while (P < PEnd) and (AMaxLen > 0) and CharInSet(P^, ['0'..'9']) do
+    begin
+      AValue := AValue * 10 + (Ord(P^) - Ord('0'));
+      Inc(P);
+      Dec(AMaxLen);
+    end;
+    // 分隔符之后必须有数字，不能把缺失的时间分量当成零。
+    Result := P > LStart;
+  end;
+
 begin
   ADateTime := 0;
   if (AStr = '') then Exit(False);
@@ -719,30 +724,29 @@ begin
         Inc(P);
     end;
     if (P + 2 = PEnd) and (P[0] = ')') and (P[1] = '/') then
-      //ADateTime := TDateTime(UnixDateDelta + (LMSecsSince1970 / MSecsPerDay))
-      // fpc 在开启 delphi 模式, 并且目标设置为 32位的情况,
-      // 将 Extended 类型强制转换为 TDateTime 会编译报错,
-      // 直接赋值倒是能编译通过
-      ADateTime := UnixDateDelta + (LMSecsSince1970 / MSecsPerDay)
-    else
+    begin
+      // FPC Delphi 模式下避免将 Extended 显式强转为 TDateTime。
+      LDateTime := UnixDateDelta + (LMSecsSince1970 / MSecsPerDay);
+      Inc(P, 2);
+    end else
       Exit(False); // invalid format
   end else
   begin
     if (P^ = '-') then // negative year
       Inc(P);
-    P := ParseDateTimePart(P, LYear, 4);
-    if (P^ <> '-') then
-      Exit(False); // invalid format
-    P := ParseDateTimePart(P + 1, LMonth, 2);
-    if (P^ <> '-') then
-      Exit(False); // invalid format
-    P := ParseDateTimePart(P + 1, LDay, 2);
+    if not ParseDateTimePart(P, LYear, 4) then Exit(False);
+    if (P^ <> '-') then Exit(False);
+    Inc(P);
+    if not ParseDateTimePart(P, LMonth, 2) then Exit(False);
+    if (P^ <> '-') then Exit(False);
+    Inc(P);
+    if not ParseDateTimePart(P, LDay, 2) then Exit(False);
 
     LHour := 0;
     LMin := 0;
     LSec := 0;
     LMSec := 0;
-    if not TryEncodeDate(LYear, LMonth, LDay, ADateTime) then Exit(False);
+    if not TryEncodeDate(LYear, LMonth, LDay, LDateTime) then Exit(False);
 
     // ISO8601
     // "2015-02-01T16:08:19.202Z"
@@ -752,62 +756,80 @@ begin
     // "2015-02-01T16:08:19.202+8"
     if (P^ = 'T') then
     begin
-      P := ParseDateTimePart(P + 1, LHour, 2);
-      if (P^ <> ':') then
-        Exit(False); // invalid format
-      P := ParseDateTimePart(P + 1, LMin, 2);
+      Inc(P);
+      if not ParseDateTimePart(P, LHour, 2) then Exit(False);
+      if (P^ <> ':') then Exit(False);
+      Inc(P);
+      if not ParseDateTimePart(P, LMin, 2) then Exit(False);
       if (P^ = ':') then
       begin
-        P := ParseDateTimePart(P + 1, LSec, 2);
+        Inc(P);
+        if not ParseDateTimePart(P, LSec, 2) then Exit(False);
         if (P^ = '.') then
-          P := ParseDateTimePart(P + 1, LMSec, 3);
+        begin
+          Inc(P);
+          if not ParseDateTimePart(P, LMSec, 3) then Exit(False);
+        end;
       end;
       if not TryEncodeTime(LHour, LMin, LSec, LMSec, LTime) then Exit(False);
-      ADateTime := ADateTime + LTime;
-      if (P^ <> 'Z') then
+      LDateTime := LDateTime + LTime;
+      if (P^ = 'Z') then
+        Inc(P)
+      else
+      if (P^ = '+') or (P^ = '-') then
       begin
-        if (P^ = '+') or (P^ = '-') then
+        if (P^ = '+') then
+          LSign := -1 // 正偏移表示当地时间领先 UTC，换算时减去偏移
+        else
+          LSign := 1;
+
+        Inc(P);
+        if not ParseDateTimePart(P, LOffsetHour, 2) then Exit(False);
+        LOffsetMin := 0;
+        if (P^ = ':') then
         begin
-          if (P^ = '+') then
-            LSign := -1 //  +01:00 means that the time is 1 hour later than UTC
-          else
-            LSign := 1;
-
-          P := ParseDateTimePart(P + 1, LOffsetHour, 2);
-          if (P^ = ':') then
-            Inc(P);
-          ParseDateTimePart(P, LOffsetMin, 2);
-
-          if not TryEncodeTime(LOffsetHour, LOffsetMin, 0, 0, LTime) then Exit(False);
-          ADateTime := ADateTime + (LTime * LSign);
+          Inc(P);
+          if not ParseDateTimePart(P, LOffsetMin, 2) then Exit(False);
         end else
-          Exit(False); // invalid format
-      end;
+        if (P < PEnd) then
+          if not ParseDateTimePart(P, LOffsetMin, 2) then Exit(False);
 
-      // 带时区格式的时间转换为本地时间
+        if not TryEncodeTime(LOffsetHour, LOffsetMin, 0, 0, LTime) then Exit(False);
+        LDateTime := LDateTime + (LTime * LSign);
+      end else
+        Exit(False); // invalid format
+
+      // 先确认完整输入，再进行带时区格式的本地时间换算。
+      if (P <> PEnd) then Exit(False);
       if AConvertToLocal then
-        ADateTime := ADateTime.ToLocalTime;
+        LDateTime := LDateTime.ToLocalTime;
     end else
     // "2015-02-01 16:08:19.202"
     if (P^ = ' ') then
     begin
-      P := ParseDateTimePart(P + 1, LHour, 2);
-      if (P^ <> ':') then
-        Exit(False); // invalid format
-      P := ParseDateTimePart(P + 1, LMin, 2);
+      Inc(P);
+      if not ParseDateTimePart(P, LHour, 2) then Exit(False);
+      if (P^ <> ':') then Exit(False);
+      Inc(P);
+      if not ParseDateTimePart(P, LMin, 2) then Exit(False);
       if (P^ = ':') then
       begin
-        P := ParseDateTimePart(P + 1, LSec, 2);
+        Inc(P);
+        if not ParseDateTimePart(P, LSec, 2) then Exit(False);
         if (P^ = '.') then
-          ParseDateTimePart(P + 1, LMSec, 3);
+        begin
+          Inc(P);
+          if not ParseDateTimePart(P, LMSec, 3) then Exit(False);
+        end;
       end;
       if not TryEncodeTime(LHour, LMin, LSec, LMSec, LTime) then Exit(False);
-      ADateTime := ADateTime + LTime;
-    end else
-    if (P < PEnd) then
-      Exit(False);
+      LDateTime := LDateTime + LTime;
+    end;
   end;
 
+  // 必须消费整个字符串，包括嵌入 NUL 后的内容；失败不泄漏部分日期。
+  if (P <> PEnd) then Exit(False);
+  ADateTime := LDateTime;
   Result := True;
 end;
 

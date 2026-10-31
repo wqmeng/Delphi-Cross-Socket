@@ -27,6 +27,7 @@ uses
   SysUtils,
   Classes,
   Generics.Collections,
+  {$IFDEF FPC}DTF.Generics,{$ENDIF}
 
   Net.SocketAPI,
   Net.CrossProxy,
@@ -41,10 +42,21 @@ uses
 
 type
 
+  // 只统计本层持有的未完成项及有效字节；0 不限制，不包含 OpenSSL 内部堆。
+  TCrossSslQueueLimits = record
+    MaxWriteCount: Integer;
+    MaxWriteBytes: Int64;
+    MaxCipherCount: Integer;
+    MaxCipherBytes: Int64;
+    MaxReceivedCount: Integer;
+    MaxReceivedBytes: Int64;
+  end;
+
   { TCrossOpenSslConnection }
 
   TCrossOpenSslConnection = class(TCrossSslConnectionBase)
   private type
+    TSslReadResult = (srWant, srClosed, srFatal);
     // pending write 队列条目: 零拷贝, 仅保存上层传入的指针.
     // 调用方需保证 Buf 在 Callback 触发前持续有效 (异步框架契约).
     // **注意**: Callback 的 AConnection 参数在连接析构时会被传 nil
@@ -54,6 +66,13 @@ type
       Len: Integer;
       Callback: TCrossConnectionCallback;
     end;
+    TCipherWrite = record
+      Data: TBytes;
+      Callback: TCrossConnectionCallback;
+    end;
+    TPendingWriteQueue = {$IFDEF FPC}TFpcQueue{$ELSE}TQueue{$ENDIF}<TPendingWrite>;
+    TCipherWriteQueue = {$IFDEF FPC}TFpcQueue{$ELSE}TQueue{$ENDIF}<TCipherWrite>;
+    TReceivedQueue = {$IFDEF FPC}TFpcQueue{$ELSE}TQueue{$ENDIF}<TBytes>;
   private
     FSslData: PSSL;
     FBIOIn, FBIOOut: PBIO;
@@ -70,10 +89,29 @@ type
     // pending write 队列: BIO 空 + WANT_* 时把待写明文挂起,
     // 等 TriggerReceived 推进 SSL 状态后由 _PumpPendingWrites 唤醒.
     // FIFO 顺序保证 SSL 状态机不会被穿插数据弄乱.
-    FPendingWrites: TQueue<TPendingWrite>;
+    FPendingWrites: TPendingWriteQueue;
     FPendingBytes: Int64;       // 已挂起明文字节数 (用于背压判定)
     FMaxPendingBytes: Int64;    // 上限 (从 Owner 复制, 0 = 不限)
     FPumping: Boolean;          // 正在 pump 标志 (单 pumper 不变量)
+    FStartingWrites, FResumePending: Boolean;
+    FRetryWrite: TPendingWrite;
+    FHasRetryWrite: Boolean;
+    FCipherWrites: TCipherWriteQueue;
+    FCipherSending, FCipherPumping, FCipherClosed: Boolean;
+    FReceivedData: TReceivedQueue;
+    FDeliveringData, FConnectedPublished: Boolean;
+    FTlsEnded: Boolean;
+    FTerminalData: TBytes;
+    FFatalLog: string;
+    FQueueLimits: TCrossSslQueueLimits;
+    FWriteCount, FCipherCount, FReceivedCount: Integer;
+    FWriteBytes, FCipherBytes, FReceivedBytes: Int64;
+    FTerminalCounted: Boolean;
+
+    function _LimitWriteCallback(const ASize: Integer;
+      const ACallback: TCrossConnectionCallback): TCrossConnectionCallback;
+    function _HasCipherCapacity(const ASize: Integer): Boolean;
+    procedure _CapacityFailedLocked(const AName: string);
 
     // 注意: _SslLock/_SslUnlock 是 SSL 层独立锁, 非基类 _Lock/_Unlock.
     // 基类通过 _LockRecv/_LockSent 保护 IO 路径, 不经过这里.
@@ -86,9 +124,10 @@ type
     function _BIO_write(Buf: Pointer; Len: Integer): Integer; inline;
     function _BIO_read_all(const ABIO: PBIO): TBytes; overload;
     function _SSL_read_all(const ASslData: PSSL): TBytes; overload;
-
     function _SSL_read(Buf: Pointer; Len: Integer): Integer; overload; inline;
-    function _SSL_read_all: TBytes; overload;
+    function _SSL_read_all(out AReadResult: TSslReadResult): TBytes; overload;
+    function _SSL_read_all(const ASslData: PSSL;
+      out AReadResult: TSslReadResult): TBytes; overload;
     function _SSL_write(Buf: Pointer; Len: Integer): Integer; inline;
 
     function _SSL_do_handshake: Integer; inline;
@@ -106,6 +145,7 @@ type
     // _SslSend 主体: 状态机 + CPS 循环, BIO 空 + WANT_* 时入队挂起
     procedure _SslSendInner(const ABuf: PByte; const ALen: Integer;
       const ACallback: TCrossConnectionCallback);
+    procedure _StartPendingWrite(const AItem: TPendingWrite);
 
     // 尝试入队 pending write (必须在 FLock 内调用).
     // 返回 True=已入队 / False=背压拒绝 (调用方应 fail callback).
@@ -114,7 +154,17 @@ type
 
     // 唤醒 pending write 队列首条目, 推进完成后由 callback 触发下一轮 pump.
     // 由 TriggerReceived 在 SSL 状态推进 (BIO_write/SSL_read/握手) 后调用.
-    procedure _PumpPendingWrites;
+    procedure _PumpPendingWrites(const AResume: Boolean = False);
+
+    function _QueueCipherLocked(const AData: TBytes;
+      const ACallback: TCrossConnectionCallback): Boolean;
+    procedure _PumpCipherWrites;
+    procedure _SendCipherItem(const AItem: TCipherWrite);
+    procedure _DrainCipherWritesAsFailed(const AConnection: ICrossConnection);
+    procedure _PumpReceivedData;
+    procedure _SetTlsEndedLocked(const AReplyClose: Boolean);
+    procedure _FinishTls;
+    procedure _LogTlsError;
 
     // 把 queue 中所有挂起条目以 fail 通知上层 (析构 / pump 推进失败时调用),
     // 调用方需保证当前线程不持有 FLock.
@@ -135,6 +185,7 @@ type
     procedure _Send(const ABytes: TBytes;
       const ACallback: TCrossConnectionCallback = nil); overload;
   protected
+    procedure InternalClose; override;
     procedure DirectSend(const ABuffer: Pointer; const ACount: Integer;
       const ACallback: TCrossConnectionCallback = nil); override;
     procedure SendProxyBytes(const ABytes: TBytes); override;
@@ -147,6 +198,8 @@ type
     destructor Destroy; override;
 
     function GetSslInfo(var ASslInfo: TSslInfo): Boolean; override;
+    // 仅可在没有未完成收发的空闲连接上调整；不会追补已有缓冲。
+    procedure SetSslQueueLimits(const AValue: TCrossSslQueueLimits);
   end;
 
   /// <remarks>
@@ -159,6 +212,9 @@ type
   private
     FSslCtx: PSSL_CTX;
     FTlsRuntimeLoaded: Boolean;
+    FSslLoaded: Boolean;
+    FQueueLimits: TCrossSslQueueLimits;
+    procedure SetSslQueueLimits(const AValue: TCrossSslQueueLimits);
 
     procedure _InitSslCtx;
     procedure _FreeSslCtx;
@@ -197,6 +253,9 @@ type
     procedure EnsureSslCtx;
     procedure SetTls12CipherSuites(const ACipherRules: string); override;
     procedure SetTls13CipherSuites(const ACipherSuites: string); override;
+    procedure SetMinTlsVersion(const AVersion: TCrossTlsMinVersion); override;
+    // 在建立第一个 TLS 连接前配置；每个连接取得独立快照。
+    property SslQueueLimits: TCrossSslQueueLimits read FQueueLimits write SetSslQueueLimits;
   end;
 
 {$IFDEF CROSS_OPENSSL_SELFTEST}
@@ -208,13 +267,35 @@ procedure CrossOpenSslSelfTest_GetProtocolVersions(
   const ASocket: TCrossOpenSslSocket; out AMinVersion, AMaxVersion: Integer);
 function CrossOpenSslSelfTest_GetNegotiatedCipher(
   const AConnection: ICrossConnection; out AVersion, ACipher: string): Boolean;
+function CrossOpenSslSelfTest_CloseDrainsPendingWrites(out AErrMsg: string): Boolean;
 function CrossOpenSslSelfTest_PendingCallbackExceptionDoesNotStall(
   out AErrMsg: string): Boolean;
 function CrossOpenSslSelfTest_HandshakeSendFailureDoesNotPromote(
   out AErrMsg: string): Boolean;
+function CrossOpenSslSelfTest_QueueClear(const AConnection: ICrossConnection;
+  const AKind: Integer): Boolean;
+function CrossOpenSslSelfTest_QueueUsage(const AConnection: ICrossConnection): TArray<Int64>;
+var
+  // 只固定解密登记后、明文发布前的调度时序，不替换原生 TLS 或发送完成。
+  CrossOpenSslSelfTest_BeforeReceived: TCrossConnectionCallback;
 {$ENDIF}
 
 implementation
+
+{$IFDEF CROSS_OPENSSL_SELFTEST}
+function CrossOpenSslSelfTest_QueueUsage(const AConnection: ICrossConnection): TArray<Int64>;
+var C: TCrossOpenSslConnection;
+begin
+  C := AConnection as TCrossOpenSslConnection;
+  C._SslLock;
+  try
+    SetLength(Result, 6);
+    Result[0] := C.FWriteCount; Result[1] := C.FWriteBytes;
+    Result[2] := C.FCipherCount; Result[3] := C.FCipherBytes;
+    Result[4] := C.FReceivedCount; Result[5] := C.FReceivedBytes;
+  finally C._SslUnlock; end;
+end;
+{$ENDIF}
 
 const
   /// <summary>
@@ -229,6 +310,89 @@ const
   MAX_HANDSHAKE_RECV_BYTES = 128 * 1024;
 
 {$IFDEF CROSS_OPENSSL_SELFTEST}
+{$IFDEF FPC}
+type
+  TQueueSlotView<T> = class(TQueue<T>)
+    function Slot(const AIndex: Integer): T;
+    function SlotCount: Integer;
+  end;
+function TQueueSlotView<T>.Slot(const AIndex: Integer): T;
+begin Result := FItems[AIndex]; end;
+function TQueueSlotView<T>.SlotCount: Integer;
+begin Result := Length(FItems); end;
+{$ENDIF}
+
+function CrossOpenSslSelfTest_QueueClear(const AConnection: ICrossConnection;
+  const AKind: Integer): Boolean;
+var
+  C: TCrossOpenSslConnection;
+  P: TCrossOpenSslConnection.TPendingWrite;
+  W: TCrossOpenSslConnection.TCipherWrite;
+  B: TBytes;
+  I: Integer;
+  {$IFDEF FPC}
+  PV: TQueueSlotView<TCrossOpenSslConnection.TPendingWrite>;
+  WV: TQueueSlotView<TCrossOpenSslConnection.TCipherWrite>;
+  BV: TQueueSlotView<TBytes>;
+  {$ENDIF}
+begin
+  C := AConnection as TCrossOpenSslConnection;
+  C._SslLock;
+  try
+    // 使用连接自身的三种托管队列；保持固定深度，强制触发 RTL 搬移而非仅析构释放。
+    P := Default(TCrossOpenSslConnection.TPendingWrite);
+    W := Default(TCrossOpenSslConnection.TCipherWrite);
+    P.Callback := procedure(const X: ICrossConnection; const OK: Boolean) begin end;
+    W.Callback := P.Callback;
+    B := TBytes.Create(1, 2, 3);
+    W.Data := B;
+    for I := 0 to 2111 do
+    begin
+      if I >= 64 then
+        case AKind of
+          0: C.FPendingWrites.Dequeue;
+          1: C.FCipherWrites.Dequeue;
+          2: C.FReceivedData.Dequeue;
+        end;
+      case AKind of
+        0: C.FPendingWrites.Enqueue(P);
+        1: C.FCipherWrites.Enqueue(W);
+        2: C.FReceivedData.Enqueue(B);
+      end;
+    end;
+    case AKind of
+      0: C.FPendingWrites.Clear;
+      1: C.FCipherWrites.Clear;
+      2: C.FReceivedData.Clear;
+    end;
+    P := Default(TCrossOpenSslConnection.TPendingWrite);
+    W := Default(TCrossOpenSslConnection.TCipherWrite);
+    B := nil;
+    Result := True;
+    {$IFDEF FPC}
+    PV := TQueueSlotView<TCrossOpenSslConnection.TPendingWrite>(C.FPendingWrites);
+    WV := TQueueSlotView<TCrossOpenSslConnection.TCipherWrite>(C.FCipherWrites);
+    BV := TQueueSlotView<TBytes>(C.FReceivedData);
+    case AKind of
+      0: for I := 0 to PV.SlotCount - 1 do
+         begin
+           P := PV.Slot(I);
+           if Assigned(P.Callback) then Exit(False);
+         end;
+      1: for I := 0 to WV.SlotCount - 1 do
+         begin
+           W := WV.Slot(I);
+           if (Length(W.Data) > 0) or Assigned(W.Callback) then Exit(False);
+         end;
+      2: for I := 0 to BV.SlotCount - 1 do
+         if Length(BV.Slot(I)) > 0 then Exit(False);
+    end;
+    {$ENDIF}
+  finally
+    C._SslUnlock;
+  end;
+end;
+
 function CrossOpenSslSelfTest_GetCipherList(
   const ASocket: TCrossOpenSslSocket): TArray<string>;
 var
@@ -292,6 +456,100 @@ begin
   ACipher := UTF8ToString(SSL_get_cipher_name(LConnection.FSslData));
 end;
 
+type
+  TPendingCloseObserver = class
+    procedure Disconnected(const ASender: TObject; const AConnection: ICrossConnection);
+  end;
+
+procedure TPendingCloseObserver.Disconnected(const ASender: TObject;
+  const AConnection: ICrossConnection);
+begin
+  raise Exception.Create('测试断连通知异常');
+end;
+
+function CrossOpenSslSelfTest_CloseDrainsPendingWrites(out AErrMsg: string): Boolean;
+var
+  LSocket: TCrossOpenSslSocket;
+  LConnection: TCrossOpenSslConnection;
+  LConnectionIntf: ICrossConnection;
+  LObserver: TPendingCloseObserver;
+  LCallbackCount: Integer;
+  LUnexpectedSuccess, LRaised: Boolean;
+  LByte: Byte;
+  procedure EnqueueCallback(const AIndex: Integer);
+  var
+    LKeepAlive: ICrossConnection;
+    LCallback: TCrossConnectionCallback;
+  begin
+    // 独立过程使编译器的匿名函数临时引用在入队后立即释放。
+    LKeepAlive := LConnectionIntf;
+    LCallback := procedure(const AConnection: ICrossConnection; const ASuccess: Boolean)
+      begin
+        Inc(LCallbackCount);
+        if ASuccess or (LKeepAlive = nil) then LUnexpectedSuccess := True;
+        if AIndex = 0 then raise Exception.Create('测试挂起写完成异常');
+      end;
+    LConnection._SslLock;
+    try
+      if not LConnection._TryEnqueuePendingWrite(@LByte, 1, LCallback) then
+        raise Exception.Create('挂起写未入队');
+    finally
+      LConnection._SslUnlock;
+    end;
+  end;
+begin
+  Result := False;
+  AErrMsg := '';
+  LSocket := TCrossOpenSslSocket.Create(0, False);
+  LObserver := TPendingCloseObserver.Create;
+  try
+    LSocket.OnDisconnected := LObserver.Disconnected;
+    LConnection := TCrossOpenSslConnection.Create(LSocket,
+      TSocketAPI.NewTcp, ctConnect, '', nil);
+    LConnectionIntf := LConnection;
+    LConnection.FLock := TLock.Create;
+    LConnection.FPendingWrites := TCrossOpenSslConnection.TPendingWriteQueue.Create;
+    try
+      try
+        if LConnection.Socket = INVALID_SOCKET then raise Exception.Create('测试套接字创建失败');
+        LConnection.ConnectStatus := csConnected;
+        LCallbackCount := 0;
+        LUnexpectedSuccess := False;
+        LByte := 0;
+        EnqueueCallback(0);
+        EnqueueCallback(1);
+        if LConnection.RefCount < 3 then raise Exception.Create('未建立挂起回调保活引用');
+        LRaised := False;
+        try LConnection.Close; except
+          on E: Exception do LRaised := E.Message = '测试断连通知异常';
+        end;
+        if not LRaised then raise Exception.Create('断连通知异常未按原契约传播');
+        if (LCallbackCount <> 2) or LUnexpectedSuccess then
+          raise Exception.Create('挂起回调未全部结算为失败');
+        if (LConnection.FPendingWrites.Count <> 0) or (LConnection.FPendingBytes <> 0)
+          or (LConnection.Socket <> INVALID_SOCKET) then
+          raise Exception.Create('关闭后仍残留队列或句柄');
+        LConnection._SslLock;
+        try
+          if LConnection._TryEnqueuePendingWrite(@LByte, 1, nil) then
+            raise Exception.Create('关闭后仍允许挂起入队');
+        finally LConnection._SslUnlock; end;
+        if LConnection.RefCount <> 1 then raise Exception.CreateFmt('close refcount=%d', [LConnection.RefCount]);
+        Result := True;
+      except
+        on E: Exception do AErrMsg := E.ClassName + ': ' + E.Message;
+      end;
+    finally
+      LConnection.FPendingWrites.Free;
+      LConnection.FPendingWrites := nil;
+      LConnectionIntf := nil;
+    end;
+  finally
+    LSocket.Free;
+    LObserver.Free;
+  end;
+end;
+
 function CrossOpenSslSelfTest_PendingCallbackExceptionDoesNotStall(
   out AErrMsg: string): Boolean;
 var
@@ -309,7 +567,7 @@ begin
       ctConnect, '', nil);
     LConnectionIntf := LConnection as ICrossConnection;
     LConnection.FLock := TLock.Create;
-    LConnection.FPendingWrites := TQueue<TCrossOpenSslConnection.TPendingWrite>.Create;
+    LConnection.FPendingWrites := TCrossOpenSslConnection.TPendingWriteQueue.Create;
     try
       try
         LItem.Buf := nil;
@@ -401,6 +659,68 @@ end;
 
 { TCrossOpenSslConnection }
 
+procedure ValidateSslQueueLimits(const AValue: TCrossSslQueueLimits);
+begin
+  if (AValue.MaxWriteCount < 0) or (AValue.MaxWriteBytes < 0)
+    or (AValue.MaxCipherCount < 0) or (AValue.MaxCipherBytes < 0)
+    or (AValue.MaxReceivedCount < 0) or (AValue.MaxReceivedBytes < 0) then
+    raise EArgumentException.Create('TLS queue limits must not be negative');
+end;
+
+procedure TCrossOpenSslConnection.SetSslQueueLimits(const AValue: TCrossSslQueueLimits);
+begin
+  ValidateSslQueueLimits(AValue);
+  if not Ssl then raise EInvalidOpException.Create('TLS is disabled');
+  _SslLock;
+  try
+    if FPumping or FStartingWrites or FHasRetryWrite or FCipherSending
+      or FCipherPumping or FDeliveringData or (FPendingWrites.Count <> 0)
+      or (FCipherWrites.Count <> 0) or (FReceivedData.Count <> 0)
+      or (FWriteCount <> 0) or (FCipherCount <> 0) or (FReceivedCount <> 0)
+      or (Length(FTerminalData) <> 0) or FTlsEnded or FCipherClosed then
+      raise EInvalidOpException.Create('TLS queue limits require an idle connection');
+    FQueueLimits := AValue;
+  finally
+    _SslUnlock;
+  end;
+end;
+
+function TCrossOpenSslConnection._LimitWriteCallback(const ASize: Integer;
+  const ACallback: TCrossConnectionCallback): TCrossConnectionCallback;
+var
+  LCompleted: Integer;
+begin
+  LCompleted := 0;
+  Result :=
+    procedure(const C: ICrossConnection; const OK: Boolean)
+    begin
+      if AtomicExchange(LCompleted, 1) <> 0 then Exit;
+      _SslLock;
+      try
+        Dec(FWriteCount);
+        Dec(FWriteBytes, ASize);
+      finally
+        _SslUnlock;
+      end;
+      if Assigned(ACallback) then ACallback(C, OK);
+    end;
+end;
+
+function TCrossOpenSslConnection._HasCipherCapacity(const ASize: Integer): Boolean;
+begin
+  Result := ((FQueueLimits.MaxCipherCount = 0)
+      or (FCipherCount < FQueueLimits.MaxCipherCount))
+    and ((FQueueLimits.MaxCipherBytes = 0)
+      or (ASize <= FQueueLimits.MaxCipherBytes - FCipherBytes));
+end;
+
+procedure TCrossOpenSslConnection._CapacityFailedLocked(const AName: string);
+begin
+  // 原生 TLS 状态已经推进，不能丢弃本条记录后继续使用同一序列。
+  FTlsEnded := True;
+  if FFatalLog = '' then FFatalLog := 'TLS ' + AName + ' queue capacity exceeded';
+end;
+
 constructor TCrossOpenSslConnection.Create(const AOwner: TCrossSocketBase;
   const AClientSocket: TSocket; const AConnectType: TConnectType;
   const AHost: string; const AConnectedCb: TCrossConnectionCallback);
@@ -431,8 +751,11 @@ begin
 
     SSL_set_bio(FSslData, FBIOIn, FBIOOut);
 
-    FPendingWrites := TQueue<TPendingWrite>.Create;
+    FPendingWrites := TPendingWriteQueue.Create;
+    FCipherWrites := TCipherWriteQueue.Create;
+    FReceivedData := TReceivedQueue.Create;
     FMaxPendingBytes := TCrossOpenSslSocket(AOwner).SslMaxPendingWriteBytes;
+    FQueueLimits := TCrossOpenSslSocket(AOwner).FQueueLimits;
 
     if (ConnectType = ctAccept) then
       SSL_set_accept_state(FSslData)   // 服务端连接
@@ -479,6 +802,12 @@ begin
     _DrainPendingWritesAsFailed(nil);
     FPendingWrites.Free;
   end;
+  if FCipherWrites <> nil then
+  begin
+    _DrainCipherWritesAsFailed(nil);
+    FCipherWrites.Free;
+  end;
+  FReceivedData.Free;
 
   if (FSslData <> nil) then
   begin
@@ -497,6 +826,50 @@ begin
   end;
 
   inherited Destroy;
+end;
+
+procedure TCrossOpenSslConnection.InternalClose;
+var
+  LData: TBytes;
+begin
+  try
+    if FLock <> nil then
+    begin
+      _SslLock;
+      try
+        FCipherClosed := True;
+        FTlsEnded := True;
+        if FTerminalCounted then
+        begin
+          Dec(FCipherCount);
+          Dec(FCipherBytes, Length(FTerminalData));
+          FTerminalCounted := False;
+        end;
+        FTerminalData := nil;
+        if FReceivedData <> nil then
+        begin
+          if (FQueueLimits.MaxReceivedCount > 0) or (FQueueLimits.MaxReceivedBytes > 0) then
+            while FReceivedData.Count > 0 do
+            begin
+              LData := FReceivedData.Dequeue;
+              Dec(FReceivedCount);
+              Dec(FReceivedBytes, Length(LData));
+            end
+          else FReceivedData.Clear;
+        end;
+      finally
+        _SslUnlock;
+      end;
+    end;
+    _LogTlsError;
+    // Close 已持有连接引用，先结算挂起写，解除回调对连接的保活引用。
+    if FPendingWrites <> nil then
+      _DrainPendingWritesAsFailed(Self as ICrossConnection);
+    if FCipherWrites <> nil then
+      _DrainCipherWritesAsFailed(Self as ICrossConnection);
+  finally
+    inherited InternalClose;
+  end;
 end;
 
 procedure TCrossOpenSslConnection.DirectSend(const ABuffer: Pointer;
@@ -544,15 +917,24 @@ end;
 function TCrossOpenSslConnection._BIO_read_all(const ABIO: PBIO): TBytes;
 const
   INITIAL_BUF_SIZE = 16384; // 初始缓冲区大小 16KB
-  MAX_BUF_INCREMENT = 65536; // 最大增量 64KB
 var
   LReadedCount, LBlockSize, LRetCode: Integer;
   LFreeSpace, LNewSize: Integer;
   P: PByte;
 begin
   LReadedCount := 0;
-  // 初始分配合理大小的缓冲区
-  SetLength(Result, INITIAL_BUF_SIZE);
+  if (FQueueLimits.MaxCipherCount > 0) or (FQueueLimits.MaxCipherBytes > 0) then
+  begin
+    LBlockSize := _BIO_pending;
+    if LBlockSize <= 0 then Exit(nil);
+    if not _HasCipherCapacity(LBlockSize) then
+    begin
+      _CapacityFailedLocked('ciphertext');
+      Exit(nil);
+    end;
+    SetLength(Result, LBlockSize);
+  end else
+    SetLength(Result, INITIAL_BUF_SIZE);
 
   while True do
   begin
@@ -566,12 +948,8 @@ begin
     // 动态扩展缓冲区(按需增长)
     if (LFreeSpace < LBlockSize) then
     begin
-      // 指数增长策略: 每次翻倍, 上限为 MAX_BUF_INCREMENT
-      LNewSize := Length(Result) * 2;
-      if (LNewSize - LReadedCount < LBlockSize) then
-        LNewSize := LReadedCount + LBlockSize + MAX_BUF_INCREMENT
-      else if (LNewSize > Length(Result) + MAX_BUF_INCREMENT) then
-        LNewSize := Length(Result) + MAX_BUF_INCREMENT;
+      // 内存 BIO 已报告当前全部待读字节，只扩到本轮实际需要的长度。
+      LNewSize := LReadedCount + LBlockSize;
       SetLength(Result, LNewSize);
     end;
 
@@ -607,24 +985,44 @@ begin
   Result := SSL_read(FSslData, Buf, Len);
 end;
 
-function TCrossOpenSslConnection._SSL_read_all: TBytes;
+function TCrossOpenSslConnection._SSL_read_all(
+  const ASslData: PSSL): TBytes;
+var
+  LReadResult: TSslReadResult;
 begin
-  Result := _SSL_read_all(FSslData);
+  Result := _SSL_read_all(ASslData, LReadResult);
 end;
 
 function TCrossOpenSslConnection._SSL_read_all(
-  const ASslData: PSSL): TBytes;
+  out AReadResult: TSslReadResult): TBytes;
+begin
+  Result := _SSL_read_all(FSslData, AReadResult);
+end;
+
+function TCrossOpenSslConnection._SSL_read_all(const ASslData: PSSL;
+  out AReadResult: TSslReadResult): TBytes;
 const
   INITIAL_BUF_SIZE = 16384;  // 初始缓冲区 16KB
   MAX_BUF_INCREMENT = 65536; // 最大增量 64KB
 var
-  LReadedCount, LRetCode: Integer;
+  LReadedCount, LRetCode, LError: Integer;
   LFreeSpace, LNewSize: Integer;
+  LAvailable: Int64;
+  LProbe: Byte;
+  LProbing: Boolean;
   P: PByte;
 begin
   LReadedCount := 0;
-  // 预分配初始缓冲区
-  SetLength(Result, INITIAL_BUF_SIZE);
+  AReadResult := srWant;
+  LAvailable := High(Integer);
+  if FQueueLimits.MaxReceivedBytes > 0 then
+    LAvailable := FQueueLimits.MaxReceivedBytes - FReceivedBytes;
+  if LAvailable > High(Integer) then LAvailable := High(Integer);
+  if (FQueueLimits.MaxReceivedCount > 0)
+    and (FReceivedCount >= FQueueLimits.MaxReceivedCount) then LAvailable := 0;
+  if LAvailable > INITIAL_BUF_SIZE then LNewSize := INITIAL_BUF_SIZE
+  else LNewSize := Integer(LAvailable);
+  SetLength(Result, LNewSize);
 
   while True do
   begin
@@ -632,18 +1030,26 @@ begin
     LFreeSpace := Length(Result) - LReadedCount;
 
     // 动态扩展缓冲区(按需增长)
-    if (LFreeSpace < 1024) then  // 预留安全空间
+    if (LFreeSpace < 1024) and (Length(Result) < LAvailable) then
     begin
       // 指数增长策略: 每次翻倍, 上限为 MAX_BUF_INCREMENT
-      LNewSize := Length(Result) * 2;
-      if (LNewSize > Length(Result) + MAX_BUF_INCREMENT) then
-        LNewSize := Length(Result) + MAX_BUF_INCREMENT;
+      if Length(Result) > MAX_BUF_INCREMENT then LNewSize := MAX_BUF_INCREMENT
+      else LNewSize := Length(Result);
+      if LNewSize > LAvailable - Length(Result) then
+        LNewSize := Integer(LAvailable - Length(Result));
+      Inc(LNewSize, Length(Result));
       SetLength(Result, LNewSize);
       LFreeSpace := Length(Result) - LReadedCount;
     end;
 
     // 指向缓冲区当前写入位置
-    P := PByte(@Result[0]) + LReadedCount;
+    LProbing := LFreeSpace = 0;
+    if LProbing then
+    begin
+      // 满额仍允许处理 WANT、KeyUpdate 和 close_notify；只探测一个栈字节。
+      P := @LProbe;
+      LFreeSpace := 1;
+    end else P := PByte(@Result[0]) + LReadedCount;
 
     // 读取数据
     LRetCode := SSL_read(ASslData, P, LFreeSpace);
@@ -651,11 +1057,20 @@ begin
     // 直到读不到数据为止
     if (LRetCode <= 0) then
     begin
-      if SSL_is_fatal_error(SSL_get_error(ASslData, LRetCode)) then
-        _Log('SSL_read ' + GetOpenSslErrors);
+      if _SSL_handle_error(LRetCode, 'SSL_read', LError) then
+        AReadResult := srFatal
+      else
+      if LError = SSL_ERROR_ZERO_RETURN then
+        AReadResult := srClosed;
       Break;
     end;
 
+    if LProbing then
+    begin
+      _CapacityFailedLocked('received plaintext');
+      AReadResult := srFatal;
+      Break;
+    end;
     // 更新已读取计数
     Inc(LReadedCount, LRetCode);
   end;
@@ -691,12 +1106,17 @@ end;
 function TCrossOpenSslConnection._SSL_handle_error(const ARetCode: Integer;
   const AOperation: string; out AErrCode: Integer): Boolean;
 var
-  LError: Cardinal;
+  LErrorText: string;
 begin
   AErrCode := _SSL_get_error(ARetCode);
   Result := SSL_is_fatal_error(AErrCode);
   if Result then
-    _Log(AOperation + ' ' + GetOpenSslErrors);
+  begin
+    LErrorText := GetOpenSslErrors;
+    // 锁内只保存诊断并禁止后续 SSL I/O；用户日志由锁外终结路径调用。
+    _SetTlsEndedLocked(False);
+    if FFatalLog = '' then FFatalLog := AOperation + ' ' + LErrorText;
+  end;
 end;
 
 function TCrossOpenSslConnection._SSL_handle_error(const ARetCode: Integer;
@@ -935,6 +1355,9 @@ function TCrossOpenSslConnection._TryEnqueuePendingWrite(const ABuf: PByte;
 var
   LItem: TPendingWrite;
 begin
+  // 与队列操作共用 SSL 锁，关闭后不得因在途 pump 再次入队。
+  if FTlsEnded or FCipherClosed or (FPendingWrites = nil) or (ConnectStatus in [csDisconnected, csClosed]) then
+    Exit(False);
   // 背压: 超限则不入队, 由调用方 fail callback (上层闭包持有的 TBytes 可释放)
   if (FMaxPendingBytes > 0)
     and (FPendingBytes + ALen > FMaxPendingBytes) then
@@ -950,275 +1373,571 @@ end;
 
 procedure TCrossOpenSslConnection._SslSend(const ABuf: PByte;
   const ALen: Integer; const ACallback: TCrossConnectionCallback);
-// SSL 数据写入薄入口: 检查 pending queue 顺序约束, 否则直接转 _SslSendInner.
-//
-// 关键不变量: 若 queue 中已有挂起条目 (或正在 pump), 新调用必须排队保持 FIFO,
-// 否则会与 pumping 中的数据穿插, 弄乱 SSL 状态机.
-//
-// 零拷贝: 仅保存 PByte 指针, 上层调用方需保证 callback 触发前 buffer 有效
-// (异步框架契约, 已被 _Send(TBytes) 重载等所遵循).
 var
   LConnection: ICrossConnection;
-  LEnqueued, LBackpressureFail: Boolean;
+  LItem: TPendingWrite;
+  LQueued, LRejected: Boolean;
+  LCallback: TCrossConnectionCallback;
 begin
-  LConnection := Self as ICrossConnection;
-
-  if (ALen <= 0) then
-  begin
-    if Assigned(ACallback) then
-      ACallback(LConnection, True);
-    Exit;
-  end;
-
-  // 已有挂起或 pumping 中: 排队保持 FIFO, 不与 pumping 数据竞争 SSL 状态
-  LEnqueued := False;
-  LBackpressureFail := False;
-
+  LConnection := Self;
+  LQueued := False;
+  LCallback := ACallback;
   _SslLock;
   try
-    if (FPendingWrites <> nil)
-      and ((FPendingWrites.Count > 0) or FPumping) then
+    LRejected := FTlsEnded or FCipherClosed or (ConnectStatus in [csDisconnected, csClosed]);
+    if not LRejected and (ALen > 0) then
     begin
-      LEnqueued := _TryEnqueuePendingWrite(ABuf, ALen, ACallback);
-      LBackpressureFail := not LEnqueued;
+      if (FQueueLimits.MaxWriteCount > 0) or (FQueueLimits.MaxWriteBytes > 0) then
+      begin
+        LRejected := ((FQueueLimits.MaxWriteCount > 0)
+            and (FWriteCount >= FQueueLimits.MaxWriteCount))
+          or ((FQueueLimits.MaxWriteBytes > 0)
+            and (ALen > FQueueLimits.MaxWriteBytes - FWriteBytes));
+        if not LRejected then
+        begin
+          LCallback := _LimitWriteCallback(ALen, ACallback);
+          Inc(FWriteCount);
+          Inc(FWriteBytes, ALen);
+        end;
+      end;
+      if not LRejected then
+      if FPumping or FHasRetryWrite or (FPendingWrites.Count > 0) then
+      begin
+        LQueued := _TryEnqueuePendingWrite(ABuf, ALen, LCallback);
+        LRejected := not LQueued;
+      end else
+        FPumping := True;
     end;
   finally
     _SslUnlock;
   end;
-
-  if LBackpressureFail then
+  if LRejected or (ALen <= 0) then
   begin
-    if Assigned(ACallback) then
-      ACallback(LConnection, False);
+    _CallConnectionCallback(LCallback, LConnection, not LRejected);
     Exit;
   end;
+  if LQueued then Exit;
+  LItem.Buf := ABuf;
+  LItem.Len := ALen;
+  LItem.Callback := LCallback;
+  _StartPendingWrite(LItem);
+end;
 
-  if LEnqueued then Exit;  // 等 _PumpPendingWrites 唤醒
-
-  _SslSendInner(ABuf, ALen, ACallback);
+procedure TCrossOpenSslConnection._StartPendingWrite(const AItem: TPendingWrite);
+var
+  LConnection: ICrossConnection;
+  LFinish: TCrossConnectionCallback;
+  LCompleted: Integer;
+begin
+  LConnection := Self;
+  LCompleted := 0;
+  LFinish :=
+    procedure(const C: ICrossConnection; const OK: Boolean)
+    var
+      LNotified, LTlsEnded: Boolean;
+    begin
+      if AtomicExchange(LCompleted, 1) <> 0 then Exit;
+      LNotified := False;
+      try
+        LNotified := _CallConnectionCallback(AItem.Callback, C, OK);
+      finally
+        _SslLock;
+        try
+          FPumping := False;
+          LTlsEnded := FTlsEnded;
+        finally
+          _SslUnlock;
+        end;
+        if OK and LNotified then
+          _PumpPendingWrites
+        else
+        if LTlsEnded and LNotified then
+          _FinishTls
+        else
+          _CloseCrossData(LConnection);
+      end;
+    end;
+  try
+    _SslSendInner(AItem.Buf, AItem.Len, LFinish);
+  except
+    on E: Exception do
+    begin
+      _LogException('SSL write failed', E);
+      LFinish(LConnection, False);
+    end;
+  end;
 end;
 
 procedure TCrossOpenSslConnection._SslSendInner(const ABuf: PByte;
   const ALen: Integer; const ACallback: TCrossConnectionCallback);
-// SSL 数据写入主体: 状态机 + CPS 实现.
-//
-// 设计要点:
-//   1. while 真循环替代锁内同步递归:
-//      - BIO 空 + 部分写入: Continue 推进, 不再加锁、不再递归.
-//      - BIO 空 + WANT_READ/WANT_WRITE: 入队挂起 (步骤 5 实现), 等
-//        TriggerReceived 推进 SSL 状态后由 _PumpPendingWrites 唤醒.
-//   2. _Send 异步调用 (callback 跨线程触发) 通过 CPS 处理;
-//      发起 _Send 前先 _SslUnlock, 破除"锁-网络嵌套".
 var
   LConnection: ICrossConnection;
   LCurBuf: PByte;
-  LRemaining: Integer;
-  LWritten, LErrCode: Integer;
-  LEncryptedData: TBytes;
-  LFatal, LBackpressureFail: Boolean;
+  LRemaining, LWritten, LError: Integer;
+  LData: TBytes;
+  LFatal, LQueued, LWaiting: Boolean;
+  LAfterCipher: TCrossConnectionCallback;
 begin
-  LConnection := Self as ICrossConnection;
-
-  if (ALen <= 0) then
-  begin
-    if Assigned(ACallback) then
-      ACallback(LConnection, True);
-    Exit;
-  end;
-
+  LConnection := Self;
   LCurBuf := ABuf;
   LRemaining := ALen;
-
-  while (LRemaining > 0) do
+  while LRemaining > 0 do
   begin
-    LEncryptedData := nil;
     LFatal := False;
-    LErrCode := 0;
-
-    // ---- 锁内: 仅做 SSL/BIO 状态机操作 ----
+    LQueued := False;
+    LWaiting := False;
+    LData := nil;
+    LAfterCipher :=
+      procedure(const C: ICrossConnection; const OK: Boolean)
+      begin
+        if not OK then
+        begin
+          _CallConnectionCallback(ACallback, C, False);
+          Exit;
+        end;
+        try
+          // 同一 SSL_write 的剩余部分/重试不回到普通队列尾部。
+          if LWritten > 0 then
+            _SslSendInner(LCurBuf + LWritten, LRemaining - LWritten, ACallback)
+          else
+            _SslSendInner(LCurBuf, LRemaining, ACallback);
+        except
+          on E: Exception do
+          begin
+            _LogException('SSL write continuation failed', E);
+            _CallConnectionCallback(ACallback, C, False);
+            _CloseCrossData(LConnection);
+          end;
+        end;
+      end;
     _SslLock;
     try
-      LWritten := _SSL_write(LCurBuf, LRemaining);
-
-      if (LWritten > 0) then
+      if FTlsEnded or FCipherClosed or (ConnectStatus in [csDisconnected, csClosed]) then
+        LFatal := True
+      else
       begin
-        // 成功写入 (部分或全部), 取出加密后数据准备发送
-        LEncryptedData := _BIO_read_all;
-      end else
-      begin
-        // SSL_write 返回 <= 0
-        if _SSL_handle_error(LWritten, 'SSL_write', LErrCode) then
-          LFatal := True
-        else if (LErrCode in [SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE]) then
-          // 可重试错误: BIO 仍可能有待 flush 的数据
-          LEncryptedData := _BIO_read_all
-        else
-          // 未识别错误码视为致命
-          LFatal := True;
+        LWritten := _SSL_write(LCurBuf, LRemaining);
+        if LWritten <= 0 then
+        begin
+          LFatal := _SSL_handle_error(LWritten, 'SSL_write', LError);
+          if not LFatal and not (LError in [SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE]) then
+            LFatal := True;
+        end;
+        if not LFatal then
+        begin
+          LData := _BIO_read_all;
+          if FTlsEnded then LFatal := True else
+          if Length(LData) > 0 then
+          begin
+            // 密文生成和入队不可分开，否则并发调用可能倒置 TLS 记录序号。
+            LQueued := _QueueCipherLocked(LData, LAfterCipher);
+            LFatal := not LQueued;
+          end else
+          if LWritten <= 0 then
+          begin
+            // 在同一次 SSL 锁内登记等待，避免接收线程在登记前唤醒而丢失进展。
+            if (FMaxPendingBytes > 0)
+              and (FPendingBytes + LRemaining > FMaxPendingBytes) then
+              LFatal := True
+            else
+            begin
+              FRetryWrite.Buf := LCurBuf;
+              FRetryWrite.Len := LRemaining;
+              FRetryWrite.Callback := ACallback;
+              FHasRetryWrite := True;
+              Inc(FPendingBytes, LRemaining);
+              FResumePending := False;
+              FPumping := False;
+              LWaiting := True;
+            end;
+          end;
+        end;
+        if LFatal then _SetTlsEndedLocked(False);
       end;
     finally
       _SslUnlock;
     end;
-
-    // ---- 锁外: 处理结果 / 发起异步 IO ----
     if LFatal then
     begin
-      if Assigned(ACallback) then
-        ACallback(LConnection, False);
+      try
+        _FinishTls;
+      finally
+        _CallConnectionCallback(ACallback, LConnection, False);
+      end;
       Exit;
     end;
-
-    if (LEncryptedData <> nil) then
+    if LWaiting then Exit;
+    if LQueued then
     begin
-      // 锁外发起异步发送, TBytes 重载会持有缓冲区到 callback 触发
-      _Send(LEncryptedData,
-        procedure(const AConnection: ICrossConnection; const ASuccess: Boolean)
-        begin
-          if not ASuccess then
-          begin
-            if Assigned(ACallback) then
-              ACallback(AConnection, False);
-            Exit;
-          end;
-
-          if (LWritten > 0) then
-          begin
-            if (LWritten < LRemaining) then
-              // 部分写入, CPS 推进剩余数据 (新栈帧, 非同步递归)
-              _SslSend(LCurBuf + LWritten, LRemaining - LWritten, ACallback)
-            else if Assigned(ACallback) then
-              ACallback(AConnection, True);
-          end else
-          begin
-            // LWritten <= 0 (WANT_READ/WANT_WRITE) + BIO 已 flush:
-            //   BIO flush 后 OpenSSL 内部状态可能变化 (例如 WANT_WRITE 的
-            //   底层 buffer 被释放), 重试 _SslSend 有机会继续推进.
-            //   这是合法的 CPS 递归 (异步 callback, 新栈帧):
-            //     若再次 WANT_* + BIO 非空 → 再次 _Send + 重试, 终究会因
-            //     BIO 空 + WANT_* 走到主循环失败分支退出, 不会无限递归.
-            _SslSend(LCurBuf, LRemaining, ACallback);
-          end;
-        end);
-      Exit; // 等待异步 callback
+      _PumpCipherWrites;
+      Exit;
     end;
-
-    // ---- BIO 空的情况 ----
-    if (LWritten > 0) then
-    begin
-      // 部分写入但 BIO 无输出 (罕见但合法), 真循环推进, 不再加锁递归.
-      Inc(LCurBuf, LWritten);
-      Dec(LRemaining, LWritten);
-      Continue;
-    end;
-
-    // BIO 空 + WANT_READ/WANT_WRITE: 真挂起场景.
-    // 同步重试无效 (OpenSSL 状态未变化), 必须等 TriggerReceived 注入新数据 →
-    // BIO_write 推进 SSL 状态后, _PumpPendingWrites 才能解除阻塞.
-    //
-    // 入队规则: 零拷贝, 仅保存 (LCurBuf, LRemaining, ACallback);
-    // 上层调用方需保证 buffer 在 callback 前持续有效 (异步框架契约).
-    // 背压: FPendingBytes 超 FMaxPendingBytes 则不入队, 直接 fail callback.
-    _SslLock;
-    try
-      LBackpressureFail := not _TryEnqueuePendingWrite(LCurBuf, LRemaining, ACallback);
-    finally
-      _SslUnlock;
-    end;
-
-    if LBackpressureFail then
-    begin
-      if Assigned(ACallback) then
-        ACallback(LConnection, False);
-    end;
-    // 否则: 已入队, 等 _PumpPendingWrites 唤醒后触发 callback
-    Exit;
+    Inc(LCurBuf, LWritten);
+    Dec(LRemaining, LWritten);
   end;
-
-  // LRemaining = 0, 全部数据已写入
-  if Assigned(ACallback) then
-    ACallback(LConnection, True);
+  _CallConnectionCallback(ACallback, LConnection,
+    not FTlsEnded and not (ConnectStatus in [csDisconnected, csClosed]));
 end;
 
-procedure TCrossOpenSslConnection._PumpPendingWrites;
-// 唤醒 pending write 队列首条目, 由 TriggerReceived 在 SSL 状态推进后调用.
-//
-// 单 pumper 不变量: FPumping 标志确保任意时刻只有一个 pumper 推进 queue,
-// 防止并发 pump 引起 SSL 状态机交叉数据.
-//
-// 推进路径: 取出首条目, 锁外调 _SslSendInner; callback 内清除 FPumping,
-// 成功则递归 pump 下一个 (锁外异步, 不会同步深递归), 失败则 drain 剩余条目.
+procedure TCrossOpenSslConnection._PumpPendingWrites(const AResume: Boolean);
 var
   LItem: TPendingWrite;
+  LRetry: Boolean;
 begin
   _SslLock;
   try
-    if FPumping then Exit;
-    if (FPendingWrites = nil) or (FPendingWrites.Count = 0) then Exit;
-    FPumping := True;
-    LItem := FPendingWrites.Dequeue;
-    Dec(FPendingBytes, LItem.Len);
+    if AResume then FResumePending := True;
+    if FStartingWrites then Exit;
+    FStartingWrites := True;
   finally
     _SslUnlock;
   end;
-
-  // 锁外推进首个条目, callback 内继续 pump 下一个或 drain.
-  // try/except: _SslSendInner 同步阶段若抛异常, 必须复位 FPumping 并
-  // drain 剩余条目, 否则 pending write 队列永久死锁.
   try
-    _SslSendInner(LItem.Buf, LItem.Len,
-      procedure(const AConnection: ICrossConnection; const ASuccess: Boolean)
-      var
-        LCallbackFailed: Boolean;
+    while True do
+    begin
+      _SslLock;
+      try
+        if FPumping or FTlsEnded or FCipherClosed or (ConnectStatus in [csDisconnected, csClosed])
+          or ((not FHasRetryWrite) and ((FPendingWrites = nil) or (FPendingWrites.Count = 0)))
+          or (FHasRetryWrite and not FResumePending) then
+        begin
+          FStartingWrites := False;
+          Exit;
+        end;
+        LRetry := FHasRetryWrite;
+        if LRetry then
+        begin
+          LItem := FRetryWrite;
+          Dec(FPendingBytes, LItem.Len);
+          FRetryWrite := Default(TPendingWrite);
+          FHasRetryWrite := False;
+          FResumePending := False;
+        end else
+        begin
+          LItem := FPendingWrites.Dequeue;
+          Dec(FPendingBytes, LItem.Len);
+        end;
+        FPumping := True;
+      finally
+        _SslUnlock;
+      end;
+      if LRetry then
       begin
-        LCallbackFailed := False;
         try
-          try
-            if Assigned(LItem.Callback) then
-              LItem.Callback(AConnection, ASuccess);
-          except
-            on E: Exception do
-            begin
-              LCallbackFailed := True;
-              _Log('pending write callback error: %s: %s', [E.ClassName, E.Message]);
-            end;
+          _SslSendInner(LItem.Buf, LItem.Len, LItem.Callback);
+        except
+          on E: Exception do
+          begin
+            _LogException('SSL write retry failed', E);
+            _CallConnectionCallback(LItem.Callback, Self, False);
           end;
-        finally
+        end;
+      end else
+        _StartPendingWrite(LItem);
+    end;
+  except
+    _SslLock;
+    try FStartingWrites := False; finally _SslUnlock; end;
+    raise;
+  end;
+end;
+
+function TCrossOpenSslConnection._QueueCipherLocked(const AData: TBytes;
+  const ACallback: TCrossConnectionCallback): Boolean;
+var
+  LItem: TCipherWrite;
+begin
+  Result := not FTlsEnded and not FCipherClosed and not (ConnectStatus in [csDisconnected, csClosed]);
+  if not Result then Exit;
+  if not _HasCipherCapacity(Length(AData)) then
+  begin
+    _CapacityFailedLocked('ciphertext');
+    Exit(False);
+  end;
+  LItem.Data := AData;
+  LItem.Callback := ACallback;
+  FCipherWrites.Enqueue(LItem);
+  if (FQueueLimits.MaxCipherCount > 0) or (FQueueLimits.MaxCipherBytes > 0) then
+  begin
+    Inc(FCipherCount);
+    Inc(FCipherBytes, Length(AData));
+  end;
+end;
+
+procedure TCrossOpenSslConnection._SendCipherItem(const AItem: TCipherWrite);
+var
+  LConnection: ICrossConnection;
+  LFinish: TCrossConnectionCallback;
+  LCompleted: Integer;
+begin
+  LConnection := Self;
+  LCompleted := 0;
+  LFinish :=
+    procedure(const C: ICrossConnection; const OK: Boolean)
+    var
+      LSuccess, LTlsEnded: Boolean;
+    begin
+      if AtomicExchange(LCompleted, 1) <> 0 then Exit;
+      _SslLock;
+      try
+        if (FQueueLimits.MaxCipherCount > 0) or (FQueueLimits.MaxCipherBytes > 0) then
+        begin
+          Dec(FCipherCount);
+          Dec(FCipherBytes, Length(AItem.Data));
+        end;
+        LTlsEnded := FTlsEnded;
+        LSuccess := OK and not FTlsEnded and not FCipherClosed
+          and not (LConnection.ConnectStatus in [csDisconnected, csClosed]);
+      finally
+        _SslUnlock;
+      end;
+      try
+        if not LSuccess then
+        begin
+          // 仅因 TLS 终态转换的 False 必须保留已解密前缀；真实 I/O 失败立即关闭。
+          if OK and LTlsEnded then _FinishTls
+          else _CloseCrossData(LConnection);
+        end;
+        if not _CallConnectionCallback(AItem.Callback, C, LSuccess) then
+          _CloseCrossData(LConnection);
+      finally
+        _SslLock;
+        try FCipherSending := False; finally _SslUnlock; end;
+        _PumpCipherWrites;
+      end;
+    end;
+  try
+    if Length(AItem.Data) = 0 then
+      LFinish(LConnection, True)
+    else
+      _Send(AItem.Data, LFinish);
+  except
+    on E: Exception do
+    begin
+      _LogException('SSL ciphertext send failed', E);
+      LFinish(LConnection, False);
+    end;
+  end;
+end;
+
+procedure TCrossOpenSslConnection._PumpCipherWrites;
+var
+  LItem: TCipherWrite;
+  LConnection: ICrossConnection;
+begin
+  LConnection := Self;
+  _SslLock;
+  try
+    if FCipherPumping then Exit;
+    FCipherPumping := True;
+  finally
+    _SslUnlock;
+  end;
+  try
+    while True do
+    begin
+      _SslLock;
+      try
+        if FTlsEnded or FCipherClosed or FCipherSending or (FCipherWrites.Count = 0) then
+        begin
+          FCipherPumping := False;
+          Exit;
+        end;
+        LItem := FCipherWrites.Dequeue;
+        FCipherSending := True;
+      finally
+        _SslUnlock;
+      end;
+      // 同步完成只复位 Sending；重入 Pump 看见 Pumping 后返回，由本循环继续。
+      _SendCipherItem(LItem);
+    end;
+  except
+    _SslLock;
+    try FCipherPumping := False; finally _SslUnlock; end;
+    LConnection.Close;
+    raise;
+  end;
+end;
+
+procedure TCrossOpenSslConnection._PumpReceivedData;
+var
+  LConnection: ICrossConnection;
+  LData: TBytes;
+  LFinished, LTerminate: Boolean;
+begin
+  LConnection := Self;
+  _SslLock;
+  try
+    if FDeliveringData then Exit;
+    FDeliveringData := True;
+  finally
+    _SslUnlock;
+  end;
+  try
+    while True do
+    begin
+      _SslLock;
+      try
+        LFinished := not FConnectedPublished or FCipherClosed
+          or (ConnectStatus in [csDisconnected, csClosed]) or (FReceivedData.Count = 0);
+        LTerminate := FTlsEnded and not FCipherClosed;
+        if LFinished then
+        begin
+          FDeliveringData := False;
+        end else
+          LData := FReceivedData.Dequeue;
+      finally
+        _SslUnlock;
+      end;
+      if LFinished then
+      begin
+        if LTerminate then _FinishTls;
+        Exit;
+      end;
+      // 明文独立按解密顺序发布，不等待已连接会话的协议输出或慢发送。
+      try
+        TCrossOpenSslSocket(Owner)._Received(LConnection, @LData[0], Length(LData));
+      finally
+        if (FQueueLimits.MaxReceivedCount > 0) or (FQueueLimits.MaxReceivedBytes > 0) then
+        begin
           _SslLock;
           try
-            FPumping := False;
+            Dec(FReceivedCount);
+            Dec(FReceivedBytes, Length(LData));
           finally
             _SslUnlock;
           end;
-
-          if LCallbackFailed then
-            _DrainPendingWritesAsFailed(AConnection);
         end;
-
-        if LCallbackFailed then Exit;
-
-        if ASuccess then
-          _PumpPendingWrites    // 推进下一个 (锁外异步)
-        else
-          _DrainPendingWritesAsFailed(AConnection);  // 失败: 后续 pending 全 fail
-      end);
+        LData := nil;
+      end;
+    end;
   except
     _SslLock;
-    try
-      FPumping := False;
-    finally
-      _SslUnlock;
-    end;
-
-    try
-      if Assigned(LItem.Callback) then
-        LItem.Callback(nil, False);
-
-      _DrainPendingWritesAsFailed(nil);
-    except
-      // 吞掉 drain 中可能的异常, 保证原始异常能 raise 出去
-    end;
+    try FDeliveringData := False; finally _SslUnlock; end;
+    _CloseCrossData(LConnection);
     raise;
   end;
+end;
+
+procedure TCrossOpenSslConnection._SetTlsEndedLocked(const AReplyClose: Boolean);
+begin
+  if FTlsEnded then Exit;
+  FTlsEnded := True;
+  // 仅正常 close_notify 可回送关闭通知；fatal 后不能再调用 SSL_shutdown。
+  if AReplyClose then
+  begin
+    ERR_clear_error();
+    SSL_shutdown(FSslData);
+  end;
+  FTerminalData := _BIO_read_all;
+  if (Length(FTerminalData) > 0)
+    and ((FQueueLimits.MaxCipherCount > 0) or (FQueueLimits.MaxCipherBytes > 0)) then
+  begin
+    Inc(FCipherCount);
+    Inc(FCipherBytes, Length(FTerminalData));
+    FTerminalCounted := True;
+  end;
+end;
+
+procedure TCrossOpenSslConnection._FinishTls;
+var
+  LConnection: ICrossConnection;
+  LItem: TCipherWrite;
+  LSend, LDefer: Boolean;
+begin
+  LConnection := Self;
+  _SslLock;
+  try
+    if FCipherClosed then Exit;
+    LSend := False;
+    LDefer := FConnectedPublished and (FDeliveringData or (FReceivedData.Count > 0));
+    if not LDefer then
+    begin
+      // 不能跳过已生成的记录抢发 alert，也不能等待对端读取才关闭。
+      LSend := (Length(FTerminalData) > 0) and not FCipherSending
+        and (FCipherWrites.Count = 0);
+      if LSend then
+      begin
+        LItem.Data := FTerminalData;
+        LItem.Callback := nil;
+        FCipherSending := True;
+      end;
+      if FTerminalCounted then
+      begin
+        // 发送时转移至物理项；不能发送时就在这里归还终态缓冲的额度。
+        if not LSend then
+        begin
+          Dec(FCipherCount);
+          Dec(FCipherBytes, Length(FTerminalData));
+        end;
+        FTerminalCounted := False;
+      end;
+      FTerminalData := nil;
+      FCipherClosed := True;
+    end;
+  finally
+    _SslUnlock;
+  end;
+  if LDefer then
+  begin
+    // 发布泵自身或另一个线程会在前缀全部交付后再次进入本方法。
+    _PumpReceivedData;
+    Exit;
+  end;
+  _LogTlsError;
+  try
+    if LSend then _SendCipherItem(LItem);
+  finally
+    // 在途 alert/数据仍由物理完成闭包保活；此处只取消未提交项。
+    _CloseCrossData(LConnection);
+  end;
+end;
+
+procedure TCrossOpenSslConnection._LogTlsError;
+var
+  LText: string;
+begin
+  if FLock = nil then Exit;
+  _SslLock;
+  try
+    LText := FFatalLog;
+    FFatalLog := '';
+  finally
+    _SslUnlock;
+  end;
+  if LText = '' then Exit;
+  // 日志可以重入或等待另一发送线程；不能持有 SSL 锁，也不能中断前缀/关闭收尾。
+  try
+    _Log(LText);
+  except
+    // 不再通过同一个用户日志记录日志异常，避免递归。
+  end;
+end;
+
+procedure TCrossOpenSslConnection._DrainCipherWritesAsFailed(const AConnection: ICrossConnection);
+var
+  LItems: TArray<TCipherWrite>;
+  I: Integer;
+begin
+  _SslLock;
+  try
+    FCipherClosed := True;
+    SetLength(LItems, FCipherWrites.Count);
+    for I := 0 to High(LItems) do
+    begin
+      LItems[I] := FCipherWrites.Dequeue;
+      if (FQueueLimits.MaxCipherCount > 0) or (FQueueLimits.MaxCipherBytes > 0) then
+      begin
+        Dec(FCipherCount);
+        Dec(FCipherBytes, Length(LItems[I].Data));
+      end;
+    end;
+    // 已交给物理发送的条目由其完成闭包持有，不能在这里释放缓冲。
+  finally
+    _SslUnlock;
+  end;
+  for I := 0 to High(LItems) do
+    _CallConnectionCallback(LItems[I].Callback, AConnection, False);
 end;
 
 procedure TCrossOpenSslConnection._DrainPendingWritesAsFailed(
@@ -1239,11 +1958,24 @@ begin
 
   _SslLock;
   try
-    if (FPendingWrites = nil) or (FPendingWrites.Count = 0) then Exit;
+    if FPendingWrites = nil then Exit;
     LCount := FPendingWrites.Count;
+    if FHasRetryWrite then Inc(LCount);
+    if LCount = 0 then Exit;
     SetLength(LDrained, LCount);
-    for I := 0 to LCount - 1 do
+    I := 0;
+    if FHasRetryWrite then
+    begin
+      LDrained[0] := FRetryWrite;
+      FRetryWrite := Default(TPendingWrite);
+      FHasRetryWrite := False;
+      Inc(I);
+    end;
+    while I < LCount do
+    begin
       LDrained[I] := FPendingWrites.Dequeue;
+      Inc(I);
+    end;
     FPendingBytes := 0;
   finally
     _SslUnlock;
@@ -1251,10 +1983,27 @@ begin
 
   for I := 0 to High(LDrained) do
     if Assigned(LDrained[I].Callback) then
-      LDrained[I].Callback(AConnection, False);
+      try
+        LDrained[I].Callback(AConnection, False);
+      except
+        // 单个完成通知异常不能阻止后续条目释放保活引用。
+        on E: Exception do
+          _LogException('SSL pending callback failed', E);
+      end;
 end;
 
 { TCrossOpenSslSocket }
+
+procedure TCrossOpenSslSocket.SetSslQueueLimits(const AValue: TCrossSslQueueLimits);
+begin
+  ValidateSslQueueLimits(AValue);
+  BeginTlsConfigUpdate;
+  try
+    FQueueLimits := AValue;
+  finally
+    EndTlsConfigUpdate;
+  end;
+end;
 
 constructor TCrossOpenSslSocket.Create(const AIoThreads: Integer; const ASsl: Boolean);
 begin
@@ -1270,9 +2019,10 @@ begin
   // 不依赖 CTX 存活 (OpenSSL 保证), 所以 CTX 可以延后释放.
   inherited Destroy;
 
-  if FTlsRuntimeLoaded then
+  if FTlsRuntimeLoaded or FSslLoaded then
   begin
     _FreeSslCtx;
+    FSslLoaded := False;
     TSSLTools.UnloadSSL;
   end;
 end;
@@ -1283,6 +2033,7 @@ begin
   begin
     TSSLTools.LoadSSL;
     FTlsRuntimeLoaded := True;
+    FSslLoaded := True;
   end;
   _InitSslCtx;
 end;
@@ -1298,7 +2049,6 @@ begin
     AHost,
     AConnectCb);
 end;
-
 procedure TCrossOpenSslSocket._InitSslCtx;
 var
   LOptions: Integer;
@@ -1308,7 +2058,6 @@ begin
   // 创建 SSL/TLS 上下文对象
   // 这里使用 TLS_method(), 该方法会让程序自动协商使用能支持的最高版本 TLS
   FSslCtx := TSSLTools.NewCTX(TLS_method());
-
   // 限制最低版本，最高版本沿用运行库及系统配置。
   ERR_clear_error();
   if SSL_CTX_set_min_proto_version(FSslCtx, TLS1_2_VERSION) <> 1 then
@@ -1381,15 +2130,42 @@ begin
   else
     LConnection := nil;
 
-  // 握手完成, 触发已连接事件
-  if ATriggerConnected then
-    _Connected(LConnection);
-
-  // 收到了解密后的数据
-  if (ADecryptedData <> nil) then
+  if (AConnectionObj <> nil) and (AConnectionObj.ConnectStatus in [csDisconnected, csClosed]) then
   begin
-    _Received(LConnection, @ADecryptedData[0], Length(ADecryptedData));
     ADecryptedData := nil;
+    Exit;
+  end;
+  if (AConnectionObj <> nil) and AConnectionObj.FTlsEnded then
+  begin
+    ADecryptedData := nil;
+    AConnectionObj._PumpReceivedData;
+    Exit;
+  end;
+  // 多个接收批次可能排在握手输出之后，连接通知仍只能发布一次。
+  if ATriggerConnected and (AConnectionObj <> nil)
+    and (AConnectionObj.ConnectStatus = csHandshaking) then
+    _Connected(LConnection);
+  if (AConnectionObj <> nil) and (AConnectionObj.ConnectStatus in [csDisconnected, csClosed]) then
+  begin
+    ADecryptedData := nil;
+    Exit;
+  end;
+
+  if AConnectionObj <> nil then
+  begin
+    AConnectionObj._SslLock;
+    try
+      if AConnectionObj.ConnectStatus = csConnected then
+        AConnectionObj.FConnectedPublished := True;
+      if ADecryptedData <> nil then
+      begin
+        AConnectionObj.FReceivedData.Enqueue(ADecryptedData);
+        ADecryptedData := nil;
+      end;
+    finally
+      AConnectionObj._SslUnlock;
+    end;
+    AConnectionObj._PumpReceivedData;
   end;
 
   // 握手 fatal: alert 已发出, 关闭连接释放资源
@@ -1398,7 +2174,7 @@ begin
     if (AConnectionObj <> nil) then
       AConnectionObj.Close;
   end else if (AConnectionObj <> nil) then
-    AConnectionObj._PumpPendingWrites;
+    AConnectionObj._PumpPendingWrites(True);
 end;
 
 procedure TCrossOpenSslSocket._FreeSslCtx;
@@ -1537,12 +2313,61 @@ begin
   end;
 end;
 
+procedure TCrossOpenSslSocket.SetMinTlsVersion(const AVersion: TCrossTlsMinVersion);
+var
+  LVersion, LActual: Integer;
+  LError: string;
+begin
+  if not Ssl then Exit;
+
+  case AVersion of
+    tmvTls13: LVersion := TLS1_3_VERSION;
+  else
+    LVersion := TLS1_2_VERSION;
+  end;
+
+  BeginTlsConfigUpdate;
+  try
+    if FSslCtx = nil then
+    begin
+      InvalidateTlsConfiguration;
+      raise ESslContextInvalid.Create('SetMinTlsVersion: SSL context is nil.');
+    end;
+
+    ERR_clear_error();
+    try
+      if SSL_CTX_set_min_proto_version(FSslCtx, LVersion) <> 1 then
+      begin
+        InvalidateTlsConfiguration;
+        LError := GetOpenSslErrors;
+        raise ESslContextInvalid.CreateFmt(
+          'SetMinTlsVersion failed; recreate the socket before using TLS: %s.',
+          [LError]);
+      end;
+
+      // 回读确认：返回成功但未生效时同样视为失败，避免静默弱于配置。
+      LActual := SSL_CTX_get_min_proto_version(FSslCtx);
+      if LActual <> LVersion then
+      begin
+        InvalidateTlsConfiguration;
+        raise ESslContextInvalid.CreateFmt(
+          'SetMinTlsVersion: the context reports minimum $%.4x after setting $%.4x; ' +
+          'recreate the socket before using TLS.', [LActual, LVersion]);
+      end;
+    finally
+      ERR_clear_error();
+    end;
+  finally
+    EndTlsConfigUpdate;
+  end;
+end;
+
 procedure TCrossOpenSslSocket.TriggerConnected(const AConnection: ICrossConnection);
 var
   LConnection: TCrossOpenSslConnection;
-  LRetCode: Integer;
+  LRetCode, LError: Integer;
   LHandshakeData: TBytes;
-  LFatal: Boolean;
+  LFatal, LQueued: Boolean;
   LProxyData: TBytes;
 begin
   LConnection := AConnection as TCrossOpenSslConnection;
@@ -1568,48 +2393,45 @@ begin
     Exit;
   end;
 
-  if Ssl then
+  if not Ssl then
   begin
-    LHandshakeData := nil;
-    LFatal := False;
-
-    LConnection._SslLock;
-    try
-      LConnection.ConnectStatus := csHandshaking;
-
-      // 开始握手
-      // 通常, 客户端连接在这里调用 SSL_do_handshake 就会生成握手数据
-      // 而服务端连接, 即便在这里调用了 SSL_do_handshake 也不会生成握手数据
-      // 只会返回 SSL_ERROR_WANT_READ, 后面再调用 BIO_read 也会继续返回 SSL_ERROR_WANT_READ
-      // 需要在 TriggerReceived 中检查握手状态, 握手没完成就还需要调用 SSL_do_handshake
-      LRetCode := LConnection._SSL_do_handshake;
-      if (LRetCode <> 1) then
-        LFatal := LConnection._SSL_handle_error(LRetCode,
-          'SSL_do_handshake(TriggerConnected)');
-
-      // 即使握手 fatal, 也读出 BIO 中可能的 TLS alert 发给对端 (RFC 5246 §7.2)
-      LHandshakeData := LConnection._BIO_read_all;
-    finally
-      LConnection._SslUnlock;
-    end;
-
-    if (LHandshakeData <> nil) then
-    begin
-      // 有 fatal alert 时先尽量发给对端, 发送完成后再关闭连接;
-      // 与 TriggerReceived 中的 fatal 握手推进保持同样的关闭顺序.
-      LConnection._Send(LHandshakeData,
-        procedure(const AConnection: ICrossConnection; const ASuccess: Boolean)
-        begin
-          if LFatal or (not ASuccess) then
-            LConnection.Close;
-        end);
-    end else
-    // 握手 fatal: 锁外关闭连接, 避免连接停滞在 csHandshaking 占用资源.
-    // 握手输入字节限制由 TriggerReceived 中累加 + 阈值检查实现.
-    if LFatal then
-      LConnection.Close;
-  end else
     _Connected(LConnection);
+    Exit;
+  end;
+  LFatal := False;
+  LQueued := False;
+  LConnection._SslLock;
+  try
+    if LConnection.FTlsEnded or LConnection.FCipherClosed or (LConnection.ConnectStatus in [csDisconnected, csClosed]) then Exit;
+    LConnection.ConnectStatus := csHandshaking;
+    LRetCode := LConnection._SSL_do_handshake;
+    if LRetCode <> 1 then
+    begin
+      LFatal := LConnection._SSL_handle_error(LRetCode, 'SSL_do_handshake(TriggerConnected)', LError);
+      LFatal := LFatal or (LError = SSL_ERROR_ZERO_RETURN);
+    end;
+    if LFatal then
+      LConnection._SetTlsEndedLocked(False)
+    else
+      LHandshakeData := LConnection._BIO_read_all;
+    if Length(LHandshakeData) > 0 then
+      LQueued := LConnection._QueueCipherLocked(LHandshakeData,
+        procedure(const C: ICrossConnection; const OK: Boolean)
+        begin
+          if LFatal or not OK then LConnection.Close;
+        end);
+    LFatal := LFatal or LConnection.FTlsEnded;
+  finally
+    LConnection._SslUnlock;
+  end;
+  if LFatal then
+  begin
+    LConnection._FinishTls;
+    Exit;
+  end;
+  if LQueued then LConnection._PumpCipherWrites
+  else
+  if LFatal or (Length(LHandshakeData) > 0) then LConnection.Close;
 end;
 
 procedure TCrossOpenSslSocket._ProcessReceivedPayload(
@@ -1617,10 +2439,10 @@ procedure TCrossOpenSslSocket._ProcessReceivedPayload(
   const APayloadLen: Integer);
 var
   LConnectionObj: TCrossOpenSslConnection;
-  LRetCode: Integer;
-  LTriggerConnected: Boolean;
+  LRetCode, LError: Integer;
+  LReadResult: TCrossOpenSslConnection.TSslReadResult;
+  LTriggerConnected, LQueued, LFatal, LHandshakeDone, LInitialHandshake: Boolean;
   LDecryptedData, LHandshakeData: TBytes;
-  LFatal: Boolean;
   LProxyData, LRemain: TBytes;
   LProxyResult: TCrossProxyFeedResult;
 begin
@@ -1647,68 +2469,108 @@ begin
     Exit;
   end;
 
-  if Ssl then
+  if not Ssl then
   begin
-    LTriggerConnected := False;
-    LDecryptedData := nil;
-    LHandshakeData := nil;
-    LFatal := False;
-
-    LConnectionObj._SslLock;
-    try
-      if (LConnectionObj.ConnectStatus = csHandshaking) then
+    _Received(AConnection, APayload, APayloadLen);
+    Exit;
+  end;
+  LTriggerConnected := False;
+  LQueued := False;
+  LFatal := False;
+  LDecryptedData := nil;
+  LHandshakeData := nil;
+  LReadResult := srWant;
+  LConnectionObj._SslLock;
+  try
+    if LConnectionObj.FTlsEnded or LConnectionObj.FCipherClosed
+      or (LConnectionObj.ConnectStatus in [csDisconnected, csClosed]) then Exit;
+    LHandshakeDone := LConnectionObj._SSL_is_init_finished <> 0;
+    if (LConnectionObj.ConnectStatus = csHandshaking) and not LHandshakeDone then
+    begin
+      Inc(LConnectionObj.FHandshakeRecvBytes, APayloadLen);
+      if LConnectionObj.FHandshakeRecvBytes > MAX_HANDSHAKE_RECV_BYTES then
+        LFatal := True;
+    end;
+    if not LFatal then
+    begin
+      LRetCode := LConnectionObj._BIO_write(APayload, APayloadLen);
+      if LRetCode <> APayloadLen then
+        LFatal := LConnectionObj._SSL_handle_error(LRetCode, 'BIO_write')
+      else
+      if LHandshakeDone or (LConnectionObj.ConnectStatus = csConnected) then
       begin
-        Inc(LConnectionObj.FHandshakeRecvBytes, APayloadLen);
-        if (LConnectionObj.FHandshakeRecvBytes > MAX_HANDSHAKE_RECV_BYTES) then
-          LFatal := True;
-      end;
-
-      if not LFatal then
+        LTriggerConnected := LConnectionObj.ConnectStatus = csHandshaking;
+        LDecryptedData := LConnectionObj._SSL_read_all(LReadResult);
+      end else
+      if LConnectionObj.ConnectStatus = csHandshaking then
       begin
-        LRetCode := LConnectionObj._BIO_write(APayload, APayloadLen);
-        if (LRetCode <> APayloadLen) then
+        LRetCode := LConnectionObj._SSL_do_handshake;
+        if LRetCode <> 1 then
         begin
-          if LConnectionObj._SSL_handle_error(LRetCode, 'BIO_write') then
-            LFatal := True;
+          LFatal := LConnectionObj._SSL_handle_error(
+            LRetCode, 'SSL_do_handshake(TriggerReceived)', LError);
+          LFatal := LFatal or (LError = SSL_ERROR_ZERO_RETURN);
         end else
-        if (LConnectionObj._SSL_is_init_finished <> 0) then
         begin
-          if (LConnectionObj.ConnectStatus = csHandshaking) then
-            LTriggerConnected := True;
-          LDecryptedData := LConnectionObj._SSL_read_all;
-        end else
-        if (LConnectionObj.ConnectStatus = csHandshaking) then
-        begin
-          LRetCode := LConnectionObj._SSL_do_handshake;
-          if (LRetCode <> 1) and
-            LConnectionObj._SSL_handle_error(LRetCode,
-              'SSL_do_handshake(TriggerReceived)') then
-            LFatal := True;
-          LHandshakeData := LConnectionObj._BIO_read_all;
-          if (LRetCode = 1) then
-          begin
-            LTriggerConnected := True;
-            LDecryptedData := LConnectionObj._SSL_read_all;
-          end;
+          LTriggerConnected := True;
+          LDecryptedData := LConnectionObj._SSL_read_all(LReadResult);
         end;
       end;
-    finally
-      LConnectionObj._SslUnlock;
     end;
-
-    if (LHandshakeData <> nil) then
-      LConnectionObj._Send(LHandshakeData,
-        procedure(const AInnerConnection: ICrossConnection;
-          const ASuccess: Boolean)
+    LFatal := LFatal or (LReadResult <> srWant);
+    if LFatal then
+      LConnectionObj._SetTlsEndedLocked(LReadResult = srClosed);
+    if LDecryptedData <> nil then
+    begin
+      LConnectionObj.FReceivedData.Enqueue(LDecryptedData);
+      if (LConnectionObj.FQueueLimits.MaxReceivedCount > 0)
+        or (LConnectionObj.FQueueLimits.MaxReceivedBytes > 0) then
+      begin
+        Inc(LConnectionObj.FReceivedCount);
+        Inc(LConnectionObj.FReceivedBytes, Length(LDecryptedData));
+      end;
+      LDecryptedData := nil;
+    end;
+    if not LFatal then LHandshakeData := LConnectionObj._BIO_read_all;
+    LFatal := LFatal or LConnectionObj.FTlsEnded;
+    LInitialHandshake := not LConnectionObj.FConnectedPublished;
+    if not LFatal and LInitialHandshake then
+      LQueued := LConnectionObj._QueueCipherLocked(LHandshakeData,
+        procedure(const C: ICrossConnection; const OK: Boolean)
         begin
-          _FinishHandshakeProgress(ASuccess, LConnectionObj,
-            LTriggerConnected, LDecryptedData, LFatal);
+          _FinishHandshakeProgress(OK, LConnectionObj, LTriggerConnected, LDecryptedData, LFatal);
         end)
     else
-      _FinishHandshakeProgress(True, LConnectionObj,
-        LTriggerConnected, LDecryptedData, LFatal);
+    if Length(LHandshakeData) > 0 then
+      LQueued := LConnectionObj._QueueCipherLocked(LHandshakeData,
+        procedure(const C: ICrossConnection; const OK: Boolean)
+        begin
+          if LFatal or not OK then _CloseCrossData(C);
+        end);
+    LFatal := LFatal or LConnectionObj.FTlsEnded;
+  finally
+    LConnectionObj._SslUnlock;
+  end;
+  {$IFDEF CROSS_OPENSSL_SELFTEST}
+  if Assigned(CrossOpenSslSelfTest_BeforeReceived) then
+    CrossOpenSslSelfTest_BeforeReceived(AConnection, True);
+  {$ENDIF}
+  if LFatal then
+  begin
+    LConnectionObj._PumpReceivedData;
+    Exit;
+  end;
+  if LInitialHandshake then
+  begin
+    if LQueued then LConnectionObj._PumpCipherWrites
+    else _FinishHandshakeProgress(True, LConnectionObj, LTriggerConnected, LDecryptedData, LFatal);
   end else
-    _Received(AConnection, APayload, APayloadLen);
+  begin
+    LConnectionObj._PumpReceivedData;
+    if not LFatal then LConnectionObj._PumpPendingWrites(True);
+    if LQueued then LConnectionObj._PumpCipherWrites
+    else if LFatal then _CloseCrossData(AConnection);
+  end;
 end;
 
 procedure TCrossOpenSslSocket._FinishProxyTlsReceive(

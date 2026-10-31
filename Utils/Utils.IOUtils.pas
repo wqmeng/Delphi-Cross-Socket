@@ -269,9 +269,13 @@ end;
 
 destructor TFastFileStream.Destroy;
 begin
-  SyncBuffer(False);
-  FreeMem(FBuffer, FBufferSize);
-  inherited Destroy;
+  try
+    SyncBuffer(False);
+  finally
+    // 刷新失败仍需释放缓冲区并关闭文件，原写入异常继续向上传递。
+    FreeMem(FBuffer, FBufferSize);
+    inherited Destroy;
+  end;
 end;
 
 procedure TFastFileStream.SyncBuffer(AReRead: boolean);
@@ -1622,15 +1626,23 @@ begin
   if not TDirectoryUtils.Exists(LTempPath) then
     TDirectoryUtils.CreateDirectory(LTempPath);
 
+  {$IFDEF POSIX}
+  // 临时文件可能包含原始请求等私密内容，只授予当前用户读写权限。
+  inherited Create(FTempFileName, fmCreate or fmShareDenyWrite, Cardinal(S_IRUSR or S_IWUSR), 32768);
+  {$ELSE}
   inherited Create(FTempFileName, fmCreate or fmShareDenyWrite);
+  {$ENDIF}
 end;
 
 destructor TTempFileStream.Destroy;
 begin
-  inherited Destroy;
-
-  if FileExists(FTempFileName) then
-    TFileUtils.Delete(FTempFileName);
+  try
+    inherited Destroy;
+  finally
+    // 临时文件也必须清理，包括父类析构刷新失败的路径。
+    if FileExists(FTempFileName) then
+      TFileUtils.Delete(FTempFileName);
+  end;
 end;
 
 end.

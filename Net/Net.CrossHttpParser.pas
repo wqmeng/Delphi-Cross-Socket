@@ -37,7 +37,7 @@ const
 
 type
   TCrossHttpParseMode = (pmServer, pmClient);
-  TCrossHttpParseState = (psIdle, psHeader, psBodyData, psChunkSize, psChunkData, psChunkEnd, psDone);
+  TCrossHttpParseState = (psIdle, psHeader, psBodyData, psChunkSize, psChunkData, psChunkEnd, psDone, psFailed, psTrailer);
 
   /// <summary>
   ///   psHeader 阶段严格 CRLF 状态机 (RFC 7230 §3): 拒绝 bare-CR / bare-LF / 错乱
@@ -54,11 +54,16 @@ type
   TOnHeaderData = procedure(const ADataPtr: Pointer; const ADataSize: Integer) of object;
   TOnGetHeaderValue = function(const AHeaderName: string; out AHeaderValues: TArray<string>): Boolean of object;
   TOnBodyBegin = procedure of object;
+  TOnBodyPolicy = procedure(var APreserveEntity: Boolean) of object;
   TOnBodyData = procedure(const ADataPtr: Pointer; const ADataSize: Integer) of object;
   TOnBodyEnd = procedure of object;
   TOnParseBegin = procedure of object;
   TOnParseSuccess = procedure of object;
   TOnParseFailed = procedure(const ACode: Integer; const AError: string) of object;
+
+  {$IFDEF CROSS_HTTP_COMPRESSION_TESTS}
+  THttpInflateInitHook = procedure(var AStream: TZStreamRec);
+  {$ENDIF}
 
   ICrossHttpParser = interface
   ['{A7E3F8D1-6B2C-4A9E-B5D7-1F0E8C3A2B4D}']
@@ -107,10 +112,13 @@ type
   TCrossHttpParser = class(TInterfacedObject, ICrossHttpParser)
   private
     FMode: TCrossHttpParseMode;
-    FMaxHeaderSize, FMaxBodyDataSize, FMaxCompressRatio: Integer;
+    FMaxHeaderSize, FMaxCompressRatio: Integer;
+    FMaxBodyDataSize: Int64;
     FOnHeaderData: TOnHeaderData;
     FOnGetHeaderValue: TOnGetHeaderValue;
     FOnBodyBegin: TOnBodyBegin;
+    FOnBodyPolicy: TOnBodyPolicy;
+    FPreserveEntity: Boolean;
     FOnBodyData: TOnBodyData;
     FOnBodyEnd: TOnBodyEnd;
     FOnParseBegin: TOnParseBegin;
@@ -118,12 +126,14 @@ type
     FOnParseFailed: TOnParseFailed;
 
     FContentLength: Int64;
-    FTransferEncoding, FContentEncoding, FConnectionStr: string;
+    FTransferEncoding, FContentEncoding: string;
     FIsChunked: Boolean;
 
     FParsedBodySize, FDecodedBodySize: Int64;
     FParseState: TCrossHttpParseState;
-    FCRCount, FLFCount: Integer;
+    FChunkAfterCR: Boolean;
+    FTrailerBytes, FTrailerFields, FTrailerLineLength: Integer;
+    FTrailerHasColon: Boolean;
     // psHeader 严格 CRLF 状态机 (含义详见 TCrossHttpHeaderCRLFState).
     FHeaderCRLFState: TCrossHttpHeaderCRLFState;
     FHeaderStream, FChunkSizeStream: TMemoryStream;
@@ -138,6 +148,7 @@ type
     FZOutSize: Integer;
     FZBuffer: TBytes;
 
+    procedure _EndInflate;
     procedure _OnHeaderData(const ADataPtr: Pointer; const ADataSize: Integer);
     function _OnGetHeaderValues(const AHeaderName: string; out AHeaderValues: TArray<string>): Boolean;
     function _OnGetHeaderValue(const AHeaderName: string; out AHeaderValue: string): Boolean;
@@ -179,11 +190,17 @@ type
     destructor Destroy; override;
 
     procedure Decode(var ABuf: Pointer; var ALen: Integer);
+    procedure Fail(const ACode: Integer; const AError: string);
     procedure Finish;
     procedure SetNoBody(const AValue: Boolean);
 
     property MaxHeaderSize: Integer read GetMaxHeaderSize write SetMaxHeaderSize;
     property MaxBodyDataSize: Integer read GetMaxBodyDataSize write SetMaxBodyDataSize;
+    // 保留既有 Integer 接口；64位配置与旧入口共享同一个实际限额。
+    property MaxBodyDataSize64: Int64 read FMaxBodyDataSize write FMaxBodyDataSize;
+    // 每条消息独立选择；在头部及 framing 验证后、解压/分配正文前调用。
+    // True 保留去除传输分帧后的实体字节，跳过 Content-Encoding 解压。
+    property OnBodyPolicy: TOnBodyPolicy read FOnBodyPolicy write FOnBodyPolicy;
     property MaxCompressRatio: Integer read GetMaxCompressRatio write SetMaxCompressRatio;
 
     property OnHeaderData: TOnHeaderData read GetOnHeaderData write SetOnHeaderData;
@@ -196,10 +213,28 @@ type
     property OnParseFailed: TOnParseFailed read GetOnParseFailed write SetOnParseFailed;
   end;
 
+{$IFDEF CROSS_HTTP_COMPRESSION_TESTS}
+// 仅测试构建可替换 zlib 分配器，记录真实原生资源生命周期。
+procedure SetHttpInflateInitHook(const AHook: THttpInflateInitHook);
+{$ENDIF}
+
 implementation
+
+{$IFDEF CROSS_HTTP_COMPRESSION_TESTS}
+var
+  GHttpInflateInitHook: THttpInflateInitHook;
+
+procedure SetHttpInflateInitHook(const AHook: THttpInflateInitHook);
+begin
+  GHttpInflateInitHook := AHook;
+end;
+{$ENDIF}
 
 const
   MAX_CHUNK_SIZE_LINE = 64;
+  // 包括每行 CRLF 与最终空行；trailer 校验后丢弃，不合并到原始头部。
+  MAX_TRAILER_BYTES = 8192;
+  MAX_TRAILER_FIELDS = 100;
   // 解压初期累计输出小于此阈值时不检查 ratio, 避免短数据造成的误报
   MIN_DECOMPRESS_CHECK_BYTES = 1024;
 
@@ -315,12 +350,17 @@ end;
 
 destructor TCrossHttpParser.Destroy;
 begin
-  Finish;
-
-  FreeAndNil(FHeaderStream);
-  FreeAndNil(FChunkSizeStream);
-
-  inherited;
+  try
+    // 保留关闭定界响应的既有 EOF 行为；其他未完成消息只清理，
+    // 不能在所属连接已经开始析构后新增业务通知。
+    if (FMode = pmClient) and (FParseState = psBodyData) and FHasBody
+      and (FContentLength < 0) and not FIsChunked then Finish;
+  finally
+    _EndInflate;
+    FreeAndNil(FHeaderStream);
+    FreeAndNil(FChunkSizeStream);
+    inherited;
+  end;
 end;
 
 procedure TCrossHttpParser.Decode(var ABuf: Pointer; var ALen: Integer);
@@ -348,6 +388,14 @@ begin
   \r\n
   }
 
+  // 失败后连接必须终止，后续字节不能再次发布为成功请求。
+  if (FParseState = psFailed) then
+  begin
+    ABuf := Pointer(PByte(ABuf) + ALen);
+    ALen := 0;
+    Exit;
+  end;
+
   try
     if (FParseState = psIdle) then
     begin
@@ -361,7 +409,7 @@ begin
     LPtrHeader := LPtr;
 
     // 使用循环处理粘包, 比递归调用节省资源
-    while (LPtr < LPtrEnd) and (FParseState <> psDone) do
+    while (LPtr < LPtrEnd) and not (FParseState in [psDone, psFailed]) do
     begin
       case FParseState of
         psHeader:
@@ -447,31 +495,45 @@ begin
         // Chunked编码: 块尺寸
         psChunkSize:
           begin
-            case LPtr^ of
-              13{\r}: Inc(FCRCount);
-              10{\n}: Inc(FLFCount);
-            else
-              FCRCount := 0;
-              FLFCount := 0;
-              FChunkSizeStream.Write(LPtr^, 1);
-              if (FChunkSizeStream.Size > MAX_CHUNK_SIZE_LINE) then
-              begin
-                _OnParseFailed(400, 'Invalid chunk size.');
-                Exit;
-              end;
-            end;
-            Inc(LPtr);
-
-            if (FCRCount = 1) and (FLFCount = 1) then
+            if FChunkAfterCR then
             begin
+              if LPtr^ <> 10 then _OnParseFailed(400, 'Invalid chunk size CRLF.');
+              Inc(LPtr);
+              FChunkAfterCR := False;
               SetString(LLineStr, MarshaledAString(FChunkSizeStream.Memory), FChunkSizeStream.Size);
               if not _TryParseChunkSizeLine(LLineStr, FChunkSize) then
               begin
                 _OnParseFailed(400, 'Invalid chunk size.');
                 Exit;
               end;
-              FParseState := psChunkData;
-              FChunkLeftSize := FChunkSize;
+              FChunkSizeStream.Clear;
+              if FChunkSize = 0 then
+              begin
+                FreeAndNil(FChunkSizeStream);
+                FParseState := psTrailer;
+                FTrailerBytes := 0;
+                FTrailerFields := 0;
+                FTrailerLineLength := 0;
+                FTrailerHasColon := False;
+              end else
+              begin
+                FParseState := psChunkData;
+                FChunkLeftSize := FChunkSize;
+              end;
+            end else
+            begin
+              case LPtr^ of
+                13: FChunkAfterCR := True;
+                10: _OnParseFailed(400, 'Invalid chunk size CRLF.');
+              else
+                // 在 Trim 或忽略扩展之前拒绝原始控制字节。
+                if not TCrossHttpUtils.IsHeaderValueChar(Char(LPtr^)) then
+                  _OnParseFailed(400, 'Invalid chunk size character.');
+                FChunkSizeStream.Write(LPtr^, 1);
+                if FChunkSizeStream.Size > MAX_CHUNK_SIZE_LINE then
+                  _OnParseFailed(400, 'Invalid chunk size.');
+              end;
+              Inc(LPtr);
             end;
           end;
 
@@ -497,45 +559,76 @@ begin
             if (FChunkLeftSize <= 0) then
             begin
               FParseState := psChunkEnd;
-              FCRCount := 0;
-              FLFCount := 0;
+              FChunkAfterCR := False;
             end;
           end;
 
         // Chunked编码: 块结束符\r\n
         psChunkEnd:
           begin
-            case LPtr^ of
-              13{\r}: Inc(FCRCount);
-              10{\n}: Inc(FLFCount);
-            else
-              begin
-                _OnParseFailed(400, 'Invalid chunk data.');
-                Exit;
-              end;
+            if FChunkAfterCR then
+            begin
+              if LPtr^ <> 10 then _OnParseFailed(400, 'Invalid chunk data CRLF.');
+              FParseState := psChunkSize;
+              FChunkAfterCR := False;
+            end else
+            begin
+              if LPtr^ <> 13 then _OnParseFailed(400, 'Invalid chunk data CRLF.');
+              FChunkAfterCR := True;
             end;
             Inc(LPtr);
+          end;
 
-            if (FCRCount = 1) and (FLFCount = 1) then
+        psTrailer:
+          begin
+            Inc(FTrailerBytes);
+            if FTrailerBytes > MAX_TRAILER_BYTES then
+              _OnParseFailed(400, 'Trailer section too large.');
+            if FChunkAfterCR then
             begin
-              // 最后一块的ChunSize为0
-              if (FChunkSize > 0) then
-              begin
-                FParseState := psChunkSize;
-                FChunkSizeStream.Clear;
-                FCRCount := 0;
-                FLFCount := 0;
-              end else
+              if LPtr^ <> 10 then _OnParseFailed(400, 'Invalid trailer CRLF.');
+              Inc(LPtr);
+              FChunkAfterCR := False;
+              if FTrailerLineLength = 0 then
               begin
                 FParseState := psDone;
-                FreeAndNil(FChunkSizeStream);
-                _OnBodyEnd();
+                _OnBodyEnd;
                 Break;
               end;
+              if not FTrailerHasColon then _OnParseFailed(400, 'Invalid trailer field.');
+              Inc(FTrailerFields);
+              if FTrailerFields > MAX_TRAILER_FIELDS then
+                _OnParseFailed(400, 'Too many trailer fields.');
+              FTrailerLineLength := 0;
+              FTrailerHasColon := False;
+            end else
+            begin
+              case LPtr^ of
+                13: FChunkAfterCR := True;
+                10: _OnParseFailed(400, 'Invalid trailer CRLF.');
+              else
+                // 不保存字段内容；直接按原始字节校验，拒绝 obs-fold 和名称前空白。
+                if not FTrailerHasColon then
+                begin
+                  if LPtr^ = Ord(':') then
+                  begin
+                    if FTrailerLineLength = 0 then _OnParseFailed(400, 'Empty trailer name.');
+                    FTrailerHasColon := True;
+                  end else
+                  if not TCrossHttpUtils.IsTokenChar(Char(LPtr^)) then
+                    _OnParseFailed(400, 'Invalid trailer name.');
+                end else
+                if not TCrossHttpUtils.IsHeaderValueChar(Char(LPtr^)) then
+                  _OnParseFailed(400, 'Invalid trailer value.');
+                Inc(FTrailerLineLength);
+              end;
+              Inc(LPtr);
             end;
           end;
       end;
     end;
+
+    if (FParseState = psFailed) then Abort;
 
     // 循环中途退出 (psBodyData 在循环内 Break, psDone 自然结束),
     // psHeader 仍有未提交数据则批量写入
@@ -558,21 +651,50 @@ begin
       ABuf := Pointer(PByte(ABuf) + ALen);
       ALen := 0;
 
-      if not (e is EAbort) then
+      // 失败通知自身抛异常时，不重复通知或改判为成功。
+      if (FParseState <> psFailed) and not (e is EAbort) then
         _OnParseFailed(500, e.Message);
     end;
   end;
 end;
 
+procedure TCrossHttpParser.Fail(const ACode: Integer; const AError: string);
+begin
+  // 允许拥有此具体解析器的服务器在头部/正文回调中明确终止解析。
+  _OnParseFailed(ACode, AError);
+end;
+
 procedure TCrossHttpParser.Finish;
 begin
-  if (FMode = pmClient) and (FParseState = psBodyData) and FHasBody
-    and (FContentLength < 0) and not FIsChunked then
-  begin
-    FParseState := psDone;
-    _OnBodyEnd;
-    _Reset;
-    _OnParseSuccess;
+  try
+    try
+      if (FMode = pmClient) and (FParseState = psBodyData) and FHasBody
+        and (FContentLength < 0) and not FIsChunked then
+      begin
+        FParseState := psDone;
+        _OnBodyEnd;
+        if (FParseState = psFailed) then Exit;
+        _Reset;
+        _OnParseSuccess;
+      end else
+      if FHasBody and (FParseState in [psBodyData, psChunkSize, psChunkData, psChunkEnd, psTrailer]) then
+        _OnParseFailed(400, 'Incomplete HTTP body.');
+    except
+      on E: Exception do
+      begin
+        // 与 Decode 一样保留失败终态；失败通知的异常不能再次通知。
+        if (FParseState <> psFailed) and not (E is EAbort) then
+        begin
+          try
+            _OnParseFailed(500, E.Message);
+          except
+            on EAbort do ;
+          end;
+        end;
+      end;
+    end;
+  finally
+    _EndInflate;
   end;
 end;
 
@@ -581,31 +703,40 @@ begin
   FNoBody := AValue;
 end;
 
+procedure TCrossHttpParser._EndInflate;
+begin
+  if FZCompressed then
+  begin
+    // 先撤销所有权，使失败、Finish、Reset 和析构重复到达时仍只释放一次。
+    FZCompressed := False;
+    inflateEnd(FZStream);
+  end;
+  FZBuffer := nil;
+end;
+
 procedure TCrossHttpParser._OnBodyBegin;
 var
   LCompressType: TCompressType;
 begin
-  FZCompressed := False;
+  _EndInflate;
   FDecodedBodySize := 0;
   LCompressType := ctNone;
 
   // 根据 FContentEncoding(gzip deflate br) 判断使用哪种方式解压
   // 目前暂时只支持 gzip deflate
   // 初始化解压库
-  if (FContentEncoding <> '') then
+  if not FPreserveEntity and (FContentEncoding <> '') then
   begin
     if TStrUtils.SameText(FContentEncoding, 'gzip') then
     begin
       LCompressType := ctGZip;
-      FZCompressed := True;
     end else
     if TStrUtils.SameText(FContentEncoding, 'deflate') then
     begin
       LCompressType := ctDeflate;
-      FZCompressed := True;
     end;
 
-    if FZCompressed then
+    if LCompressType <> ctNone then
     begin
       SetLength(FZBuffer, ZLIB_BUF_SIZE);
 
@@ -613,21 +744,29 @@ begin
       FZResult := Z_OK;
       FZFlush := Z_NO_FLUSH;
 
+      {$IFDEF CROSS_HTTP_COMPRESSION_TESTS}
+      if Assigned(GHttpInflateInitHook) then GHttpInflateInitHook(FZStream);
+      {$ENDIF}
+
       if (inflateInit2(FZStream, ZLIB_WINDOW_BITS[LCompressType]) <> Z_OK) then
       begin
-        FZCompressed := False;
         _OnParseFailed(400, 'inflateInit2 failed');
         Exit;
       end;
+      FZCompressed := True;
     end;
   end;
 
   if Assigned(FOnBodyBegin) then
     FOnBodyBegin();
+  if (FParseState = psFailed) then Abort;
 end;
 
 procedure TCrossHttpParser._OnBodyData(const ADataPtr: Pointer;
   const ADataSize: Integer);
+var
+  LNextInput: Pointer;
+  LInputLeft: Cardinal;
 begin
   // 如果数据是压缩的, 进行解压
   if FZCompressed then
@@ -635,16 +774,26 @@ begin
     // 往输入缓冲区填入新数据
     // 对于使用 inflate 函数解压缩数据, 通常不需要使用 Z_FINISH 进行收尾。
     // Z_FINISH 选项通常在压缩时使用, 以表示已经完成了压缩的数据块。
-    // 在解压缩过程中, inflate 函数会自动处理数据流的结束。
-    // 当输入数据流中的所有数据都被解压缩时, inflate 函数会返回 Z_STREAM_END,
-    // 这表示数据流已经结束，不需要额外的处理。
+    // Z_STREAM_END 只表示一个压缩流结束；gzip 正文可连续包含多个成员。
     FZStream.avail_in := ADataSize;
     FZStream.next_in := ADataPtr;
     FZFlush := Z_NO_FLUSH;
 
     repeat
-      // 返回 Z_STREAM_END 表示所有数据处理完毕
-      if (FZResult = Z_STREAM_END) then Break;
+      if (FZResult = Z_STREAM_END) then
+      begin
+        if FZStream.avail_in = 0 then Break;
+        // RFC 1952 的 gzip 成员连续排列；deflate 不接受额外压缩流或垃圾字节。
+        if not TStrUtils.SameText(FContentEncoding, 'gzip') then
+          _OnParseFailed(400, 'Unexpected data after compressed body.');
+        LNextInput := FZStream.next_in;
+        LInputLeft := FZStream.avail_in;
+        FZResult := inflateReset(FZStream);
+        if FZResult <> Z_OK then _OnParseFailed(400, 'inflateReset failed');
+        FZStream.next_in := LNextInput;
+        FZStream.avail_in := LInputLeft;
+        // 只复用 zlib 状态；HTTP 消息的解压字节数和压缩比继续累计。
+      end;
 
       // 解压数据输出缓冲区
       FZStream.avail_out := ZLIB_BUF_SIZE;
@@ -690,22 +839,24 @@ begin
       // 保存已解压的数据
       if (FZOutSize > 0) and Assigned(FOnBodyData) then
         FOnBodyData(@FZBuffer[0], FZOutSize);
-    until ((FZResult = Z_STREAM_END) or (FZStream.avail_in = 0));
+      if (FParseState = psFailed) then Abort;
+    until (FZStream.avail_in = 0);
   end else
   if Assigned(FOnBodyData) then
     FOnBodyData(ADataPtr, ADataSize);
+  if (FParseState = psFailed) then Abort;
 end;
 
 procedure TCrossHttpParser._OnBodyEnd;
 begin
-  if FZCompressed then
-  begin
-    inflateEnd(FZStream);
-    FZCompressed := False;
-  end;
+  // HTTP 定界结束不等于 gzip/deflate 完整；必须收到压缩尾部并通过校验。
+  if FZCompressed and (FZResult <> Z_STREAM_END) then
+    _OnParseFailed(400, 'Incomplete compressed body.');
+  _EndInflate;
 
   if Assigned(FOnBodyEnd) then
     FOnBodyEnd();
+  if (FParseState = psFailed) then Abort;
 end;
 
 function TCrossHttpParser._OnGetHeaderValues(const AHeaderName: string;
@@ -718,6 +869,7 @@ begin
     SetLength(AHeaderValues, 0);
     Result := False;
   end;
+  if (FParseState = psFailed) then Abort;
 end;
 
 function TCrossHttpParser._OnGetHeaderValue(const AHeaderName: string;
@@ -738,24 +890,24 @@ procedure TCrossHttpParser._OnHeaderData(const ADataPtr: Pointer;
 begin
   if Assigned(FOnHeaderData) then
     FOnHeaderData(ADataPtr, ADataSize);
+  // 回调可能捕获 Fail 的 EAbort，或重入 Decode 后返回；失败态仍不可恢复。
+  if (FParseState = psFailed) then Abort;
 end;
 
 procedure TCrossHttpParser._OnParseBegin;
 begin
   if Assigned(FOnParseBegin) then
     FOnParseBegin();
+  if (FParseState = psFailed) then Abort;
 end;
 
 procedure TCrossHttpParser._OnParseFailed(const ACode: Integer;
   const AError: string);
 begin
-  FParseState := psDone;
+  if (FParseState = psFailed) then Abort;
+  FParseState := psFailed;
 
-  if FZCompressed then
-  begin
-    inflateEnd(FZStream);
-    FZCompressed := False;
-  end;
+  _EndInflate;
   FreeAndNil(FChunkSizeStream);
 
   if Assigned(FOnParseFailed) then
@@ -810,10 +962,8 @@ begin
   // 数据的压缩方式
   _OnGetHeaderValue(HEADER_CONTENT_ENCODING, FContentEncoding);
 
-  // 读取响应头中连接保持方式
-  _OnGetHeaderValue(HEADER_CONNECTION, FConnectionStr);
-
-  if (FMode = pmServer) and LHasContentLength then
+  // 长度有效性由解析器统一负责，不能把非法长度降级成缺少长度。
+  if LHasContentLength then
   begin
     if not _TryParseContentLengthValue(LContentLength, FContentLength) then
     begin
@@ -821,14 +971,9 @@ begin
       Exit;
     end;
   end else
-  if LHasContentLength then
-  begin
-    if not _TryParseContentLengthValue(LContentLength, FContentLength) then
-      FContentLength := -1;
-  end else
     FContentLength := -1;
 
-  if (FMode = pmServer) and LHasTransferEncoding then
+  if LHasTransferEncoding and ((FMode = pmServer) or not FNoBody) then
   begin
     if not _TryParseTransferEncodingValue(FTransferEncoding,
       LTransferEncoding, FIsChunked) then
@@ -840,7 +985,8 @@ begin
   end else
     FIsChunked := TStrUtils.SameText(FTransferEncoding, 'chunked');
 
-  if (FMode = pmServer) and LHasContentLength and LHasTransferEncoding then
+  if LHasContentLength and LHasTransferEncoding
+    and ((FMode = pmServer) or not FNoBody) then
   begin
     _OnParseFailed(400, 'Content-Length and Transfer-Encoding conflict.');
     Exit;
@@ -865,20 +1011,14 @@ begin
     FHasBody := (FContentLength > 0) or FIsChunked
   else
   begin
-    if (FContentLength < 0) and not FIsChunked
-      and TStrUtils.SameText(FConnectionStr, 'keep-alive') then
-    begin
-      _OnParseFailed(400, 'Invalid response data.');
-      Exit;
-    end;
-
-    // 显式 Content-Length 决定消息体长度; 只有缺失时才允许按连接关闭定界.
-    // 这样 Content-Length: 0 在 HTTP/1.1 隐式 keep-alive 下可立即完成解析.
-    FHasBody := (FContentLength > 0) or FIsChunked
-      or ((FContentLength < 0)
-        and ((FConnectionStr = '')
-          or TStrUtils.SameText(FConnectionStr, 'close')));
+    // 未指定 CL/TE 的响应以连接关闭定界，与 Connection 中有哪些扩展 token 无关。
+    // Connection 决定复用，不能替代消息定界；显式 CL=0 仍立即结束。
+    FHasBody := (FContentLength <> 0) or FIsChunked;
   end;
+
+  FPreserveEntity := False;
+  if Assigned(FOnBodyPolicy) then FOnBodyPolicy(FPreserveEntity);
+  if FParseState = psFailed then Abort;
 
   if FHasBody then
   begin
@@ -900,15 +1040,20 @@ end;
 
 procedure TCrossHttpParser._Reset;
 begin
+  _EndInflate;
   FParseState := psIdle;
   FHeaderStream.Clear;
   FreeAndNil(FChunkSizeStream);
-  FCRCount := 0;
-  FLFCount := 0;
+  FChunkAfterCR := False;
+  FTrailerBytes := 0;
+  FTrailerFields := 0;
+  FTrailerLineLength := 0;
+  FTrailerHasColon := False;
   FHeaderCRLFState := hcsLineBody;
   FParsedBodySize := 0;
   FDecodedBodySize := 0;
   FNoBody := False;
+  FPreserveEntity := False;
 end;
 
 function TCrossHttpParser.GetMaxHeaderSize: Integer;
@@ -923,7 +1068,9 @@ end;
 
 function TCrossHttpParser.GetMaxBodyDataSize: Integer;
 begin
-  Result := FMaxBodyDataSize;
+  if FMaxBodyDataSize > High(Integer) then Result := High(Integer)
+  else if FMaxBodyDataSize < Low(Integer) then Result := Low(Integer)
+  else Result := Integer(FMaxBodyDataSize);
 end;
 
 procedure TCrossHttpParser.SetMaxBodyDataSize(const AValue: Integer);
